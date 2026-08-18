@@ -123,6 +123,13 @@ const MIGRATIONS: string[] = [
     created_at    TEXT NOT NULL
   );
   `,
+  // v3 — key/value application settings (delivery channel configs etc.)
+  `
+  CREATE TABLE app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ]
 
 export type SqlParams = Record<string, string | number | null>

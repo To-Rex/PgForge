@@ -104,6 +104,11 @@ export class JobManager {
         finishedAt: job.finishedAt,
       },
     )
+    // Long-run hygiene: release the in-memory entry once pollers had time to
+    // read it — get() falls back to the persisted row afterwards. Without
+    // this, months of scheduled backups would accumulate logs in memory.
+    const release = setTimeout(() => this.live.delete(id), 10 * 60_000)
+    release.unref()
   }
 
   cancel(id: string): boolean {

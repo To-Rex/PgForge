@@ -84,7 +84,17 @@ export class MonitorService {
                s.temp_files::text AS temp_files, s.temp_bytes::text AS temp_bytes,
                s.stats_reset,
                (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database())::int AS active,
-               current_setting('max_connections')::int AS max_conn
+               current_setting('max_connections')::int AS max_conn,
+               (SELECT count(*) FROM pg_stat_activity
+                 WHERE backend_type = 'client backend')::int AS s_total,
+               (SELECT count(*) FROM pg_stat_activity
+                 WHERE backend_type = 'client backend' AND state = 'active')::int AS s_active,
+               (SELECT count(*) FROM pg_stat_activity
+                 WHERE backend_type = 'client backend' AND state = 'idle')::int AS s_idle,
+               (SELECT count(*) FROM pg_stat_activity
+                 WHERE backend_type = 'client backend' AND state LIKE 'idle in transaction%')::int AS s_idle_tx,
+               (SELECT count(*) FROM pg_locks)::int AS locks_total,
+               (SELECT count(*) FROM pg_locks WHERE NOT granted)::int AS locks_waiting
         FROM pg_stat_database s
         WHERE s.datname = current_database()`)
       const r = rows[0]
@@ -106,6 +116,14 @@ export class MonitorService {
         statsReset: isoOrNull(r.stats_reset),
         activeConnections: r.active,
         maxConnections: r.max_conn,
+        blksRead: Number(r.blks_read),
+        blksHit: Number(r.blks_hit),
+        sessionsTotal: r.s_total,
+        sessionsActive: r.s_active,
+        sessionsIdle: r.s_idle,
+        sessionsIdleInTx: r.s_idle_tx,
+        locksTotal: r.locks_total,
+        locksWaiting: r.locks_waiting,
       }
     })
   }

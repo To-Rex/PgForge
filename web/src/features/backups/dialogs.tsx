@@ -7,6 +7,7 @@ import type {
   BackupSchedule,
   BackupScheduleInput,
   CronPreview,
+  DeliveryChannel,
   JobInfo,
 } from '@pgforge/shared'
 import { Button, Checkbox, Field, Select, StatusBadge, TextInput } from '../../components/ui/basics.js'
@@ -603,6 +604,93 @@ export function ScheduleDialog({
         checked={form.enabled}
         onChange={(enabled) => setForm((f) => ({ ...f, enabled }))}
       />
+    </Modal>
+  )
+}
+
+export function SendBackupDialog({
+  backup,
+  onDone,
+  onClose,
+}: {
+  backup: BackupRecord
+  onDone: (jobId: string) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const [selected, setSelected] = useState<DeliveryChannel[]>([])
+
+  const available = useQuery({
+    queryKey: ['delivery-channels'],
+    queryFn: () => api<{ channels: DeliveryChannel[] }>('/api/delivery/channels'),
+  })
+
+  useEffect(() => {
+    if (available.data) setSelected(available.data.channels)
+  }, [available.data])
+
+  const send = useMutation({
+    mutationFn: () =>
+      api<{ jobId: string }>(`/api/backups/${backup.id}/send`, { body: { channels: selected } }),
+    onSuccess: (data) => onDone(data.jobId),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
+  })
+
+  const CHANNEL_LABELS: Record<DeliveryChannel, string> = {
+    telegram: t('delivery.telegram'),
+    email: t('delivery.email'),
+    yandex: t('delivery.yandex'),
+  }
+
+  const channels = available.data?.channels ?? []
+
+  return (
+    <Modal
+      title={`${t('delivery.sendBackup')} — ${backup.database}`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={selected.length === 0}
+            loading={send.isPending}
+            onClick={() => send.mutate()}
+          >
+            {t('delivery.send')}
+          </Button>
+        </>
+      }
+    >
+      <div className="mono muted" style={{ fontSize: 'var(--text-xs)', wordBreak: 'break-all' }}>
+        {backup.fileName}
+      </div>
+      {available.isLoading ? (
+        <span className="spinner" />
+      ) : channels.length === 0 ? (
+        <div className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+          {t('delivery.noChannels')}
+        </div>
+      ) : (
+        <Field label={t('delivery.selectChannels')}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {channels.map((channel) => (
+              <Checkbox
+                key={channel}
+                label={CHANNEL_LABELS[channel]}
+                checked={selected.includes(channel)}
+                onChange={(on) =>
+                  setSelected((prev) =>
+                    on ? [...prev, channel] : prev.filter((c) => c !== channel),
+                  )
+                }
+              />
+            ))}
+          </div>
+        </Field>
+      )}
     </Modal>
   )
 }

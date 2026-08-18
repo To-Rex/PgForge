@@ -7,6 +7,7 @@ import {
   FileText,
   Play,
   Plus,
+  Send,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ import {
   MigrateDialog,
   RestoreDialog,
   ScheduleDialog,
+  SendBackupDialog,
   UploadRestoreDialog,
 } from './dialogs.js'
 
@@ -53,6 +55,7 @@ export function BackupsPage() {
     | { kind: 'log'; jobId: string }
     | { kind: 'delete-backup'; backup: BackupRecord }
     | { kind: 'delete-schedule'; schedule: BackupSchedule }
+    | { kind: 'send'; backup: BackupRecord }
     | null
   >(null)
 
@@ -227,6 +230,16 @@ export function BackupsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              icon={Send}
+                              aria-label={t('delivery.sendBackup')}
+                              title={t('delivery.sendBackup')}
+                              onClick={() => setDialog({ kind: 'send', backup })}
+                            />
+                          )}
+                          {canEdit && backup.status === 'success' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               icon={Upload}
                               aria-label={t('backup.restore')}
                               onClick={() => setDialog({ kind: 'restore', backup })}
@@ -378,6 +391,13 @@ export function BackupsPage() {
           message={t('backup.deleteBackupConfirm', { name: dialog.backup.fileName })}
           loading={deleteBackup.isPending}
           onConfirm={() => deleteBackup.mutate(dialog.backup.id)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'send' && (
+        <SendBackupDialog
+          backup={dialog.backup}
+          onDone={(jobId) => setDialog({ kind: 'log', jobId })}
           onClose={() => setDialog(null)}
         />
       )}

@@ -19,7 +19,25 @@ const envSchema = z.object({
   PG_DUMP_PATH: z.string().default('pg_dump'),
   PG_RESTORE_PATH: z.string().default('pg_restore'),
   PSQL_PATH: z.string().default('psql'),
+  BACKUP_TIMEOUT_MS: z.coerce.number().int().min(60_000).default(2 * 3600_000),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURITY: z.enum(['ssl', 'starttls', 'none']).default('starttls'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  SMTP_TO: z.string().optional(),
 })
+
+export interface SmtpDefaults {
+  host: string
+  port: number
+  security: 'ssl' | 'starttls' | 'none'
+  username: string
+  password: string | null
+  from: string
+  to: string
+}
 
 export interface AppConfig {
   env: 'development' | 'production' | 'test'
@@ -30,12 +48,16 @@ export interface AppConfig {
   corsOrigins: string[]
   sql: { defaultTimeoutMs: number; maxTimeoutMs: number; maxRows: number }
   tools: { pgDump: string; pgRestore: string; psql: string }
+  /** Hung dump/restore processes are killed after this long. */
+  backupTimeoutMs: number
   /** HKDF-derived from APP_SECRET; used to sign JWTs. */
   jwtSecret: string
   /** HKDF-derived from APP_SECRET; encrypts stored connection credentials. */
   credentialKey: Buffer
   /** Where the master secret came from. 'file' = auto-persisted in DATA_DIR. */
   secretSource: 'env' | 'file'
+  /** Default email delivery config from SMTP_* env vars; null when unset. */
+  smtp: SmtpDefaults | null
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -84,8 +106,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxRows: e.SQL_MAX_ROWS,
     },
     tools: { pgDump: e.PG_DUMP_PATH, pgRestore: e.PG_RESTORE_PATH, psql: e.PSQL_PATH },
+    backupTimeoutMs: e.BACKUP_TIMEOUT_MS,
     jwtSecret: derive('pgforge/jwt').toString('hex'),
     credentialKey: derive('pgforge/credentials'),
     secretSource,
+    smtp: e.SMTP_HOST
+      ? {
+          host: e.SMTP_HOST,
+          port: e.SMTP_PORT,
+          security: e.SMTP_SECURITY,
+          username: e.SMTP_USER ?? '',
+          password: e.SMTP_PASSWORD ?? null,
+          from: e.SMTP_FROM ?? e.SMTP_USER ?? '',
+          to: e.SMTP_TO ?? e.SMTP_FROM ?? e.SMTP_USER ?? '',
+        }
+      : null,
   }
 }

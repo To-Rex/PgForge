@@ -1,4 +1,4 @@
-export type JobType = 'backup' | 'restore' | 'migration'
+export type JobType = 'backup' | 'restore' | 'migration' | 'delivery'
 export type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'canceled'
 
 export interface JobInfo {

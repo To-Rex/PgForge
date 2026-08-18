@@ -43,6 +43,16 @@ export interface DbStats {
   statsReset: string | null
   activeConnections: number
   maxConnections: number
+  /** Cumulative block reads/hits — clients diff consecutive samples for rates. */
+  blksRead: number
+  blksHit: number
+  /** Server-wide client-backend session states (snapshot). */
+  sessionsTotal: number
+  sessionsActive: number
+  sessionsIdle: number
+  sessionsIdleInTx: number
+  locksTotal: number
+  locksWaiting: number
 }
 
 export interface TableStat {

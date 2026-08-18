@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Ban, OctagonX, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   DbStats,
@@ -25,6 +25,8 @@ import {
 import { useAuthStore } from '../../stores/auth.js'
 import { toast } from '../../stores/toast.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
+import { HBars, LineChart } from './charts.js'
+import { computeRates, pushSample } from './series-store.js'
 
 type MonitorTab = 'overview' | 'sessions' | 'locks' | 'slow' | 'tables'
 
@@ -70,8 +72,21 @@ function OverviewTab({ connId, db }: { connId: string; db: string }) {
   const stats = useQuery({
     queryKey: ['db-stats', connId, db],
     queryFn: () => api<DbStats>(`/api/connections/${connId}/db/${encodeURIComponent(db)}/stats`),
-    refetchInterval: 10_000,
+    refetchInterval: 5_000,
   })
+  const tableStats = useQuery({
+    queryKey: ['table-stats', connId, db],
+    queryFn: () => api<TableStat[]>(`/api/connections/${connId}/db/${encodeURIComponent(db)}/table-stats`),
+    refetchInterval: 30_000,
+  })
+
+  const sampleKey = `${connId}/${db}`
+  const rates = useMemo(() => {
+    const samples = stats.data ? pushSample(sampleKey, stats.data) : []
+    return computeRates(samples)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats.data, sampleKey])
+
   const s = stats.data
   if (!s) {
     return (
@@ -80,18 +95,43 @@ function OverviewTab({ connId, db }: { connId: string; db: string }) {
       </div>
     )
   }
+
   const cells: { label: string; value: string }[] = [
     { label: t('monitor.dbSize'), value: formatBytes(s.sizeBytes) },
     { label: t('monitor.cacheHit'), value: formatPercent(s.cacheHitRatio) },
-    { label: t('conn.activeConnections'), value: `${s.activeConnections} / ${s.maxConnections}` },
+    { label: t('conn.activeConnections'), value: `${s.sessionsTotal} / ${s.maxConnections}` },
+    { label: t('monitor.locksCell'), value: `${s.locksTotal} (${s.locksWaiting})` },
+    { label: t('monitor.deadlocks'), value: formatCount(s.deadlocks) },
     { label: t('monitor.commits'), value: formatCount(s.commits) },
     { label: t('monitor.rollbacks'), value: formatCount(s.rollbacks) },
-    { label: t('monitor.deadlocks'), value: formatCount(s.deadlocks) },
     { label: t('monitor.tupIn'), value: formatCount(s.tupInserted) },
     { label: t('monitor.tupUp'), value: formatCount(s.tupUpdated) },
-    { label: t('monitor.tupDel'), value: formatCount(s.tupDeleted) },
     { label: t('monitor.tempFiles'), value: `${formatCount(s.tempFiles)} · ${formatBytes(s.tempBytes)}` },
   ]
+
+  const intFmt = (v: number) => Math.round(v).toLocaleString()
+  const collecting = t('monitor.collecting')
+
+  const stateItems = [
+    { label: t('monitor.sActive'), value: s.sessionsActive, color: 'var(--chart-1)', display: String(s.sessionsActive) },
+    { label: t('monitor.sIdle'), value: s.sessionsIdle, color: 'var(--chart-2)', display: String(s.sessionsIdle) },
+    { label: t('monitor.sIdleTx'), value: s.sessionsIdleInTx, color: 'var(--chart-3)', display: String(s.sessionsIdleInTx) },
+    {
+      label: t('monitor.sOther'),
+      value: Math.max(s.sessionsTotal - s.sessionsActive - s.sessionsIdle - s.sessionsIdleInTx, 0),
+      color: 'var(--chart-4)',
+      display: String(Math.max(s.sessionsTotal - s.sessionsActive - s.sessionsIdle - s.sessionsIdleInTx, 0)),
+    },
+  ].filter((item) => item.value > 0 || item.label === t('monitor.sActive'))
+
+  const topTables = (tableStats.data ?? [])
+    .slice(0, 8)
+    .map((table) => ({
+      label: `${table.schema}.${table.name}`,
+      value: table.totalBytes,
+      display: formatBytes(table.totalBytes),
+    }))
+
   return (
     <div className="page">
       <div className="stat-strip">
@@ -110,6 +150,53 @@ function OverviewTab({ connId, db }: { connId: string; db: string }) {
           </div>
         ))}
       </div>
+
+      <div className="chart-grid-layout">
+        <LineChart
+          title={t('monitor.chartSessions')}
+          times={rates.times}
+          collectingLabel={collecting}
+          formatValue={intFmt}
+          series={[
+            { name: t('monitor.sTotal'), color: 'var(--chart-1)', values: rates.sessionsTotal },
+            { name: t('monitor.sActive'), color: 'var(--chart-2)', values: rates.sessionsActive },
+            { name: t('monitor.sIdleTx'), color: 'var(--chart-3)', values: rates.sessionsIdleInTx },
+          ]}
+        />
+        <LineChart
+          title={t('monitor.chartTps')}
+          times={rates.times}
+          collectingLabel={collecting}
+          series={[
+            { name: 'Commit', color: 'var(--chart-1)', values: rates.commitsPerSec },
+            { name: 'Rollback', color: 'var(--chart-2)', values: rates.rollbacksPerSec },
+          ]}
+        />
+        <LineChart
+          title={t('monitor.chartRows')}
+          times={rates.times}
+          collectingLabel={collecting}
+          series={[
+            { name: 'INSERT', color: 'var(--chart-1)', values: rates.insertedPerSec },
+            { name: 'UPDATE', color: 'var(--chart-2)', values: rates.updatedPerSec },
+            { name: 'DELETE', color: 'var(--chart-3)', values: rates.deletedPerSec },
+          ]}
+        />
+        <LineChart
+          title={t('monitor.chartCache')}
+          times={rates.times}
+          collectingLabel={collecting}
+          fixedMax={100}
+          formatValue={(v) => `${Math.round(v)}%`}
+          series={[{ name: '%', color: 'var(--chart-1)', values: rates.cacheHitPct }]}
+        />
+      </div>
+
+      <div className="chart-grid-layout">
+        <HBars title={t('monitor.chartState')} items={stateItems} emptyLabel={collecting} />
+        <HBars title={t('monitor.chartTopTables')} items={topTables} emptyLabel={collecting} />
+      </div>
+
       <div className="muted" style={{ fontSize: 'var(--text-xs)' }}>
         {t('monitor.statsSince')}: <span className="mono">{formatDate(s.statsReset)}</span>
       </div>

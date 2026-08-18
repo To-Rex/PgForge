@@ -21,6 +21,8 @@ import type { BackupService } from './modules/backup/backup.service.js'
 import type { BackupScheduler } from './modules/backup/scheduler.js'
 import { registerConnectionRoutes } from './modules/connections/connections.routes.js'
 import type { ConnectionsService } from './modules/connections/connections.service.js'
+import { registerDeliveryRoutes } from './modules/delivery/delivery.routes.js'
+import type { DeliveryService } from './modules/delivery/delivery.service.js'
 import { registerDataRoutes } from './modules/data/data.routes.js'
 import type { DataService } from './modules/data/data.service.js'
 import { registerErdRoutes } from './modules/erd/erd.routes.js'
@@ -51,6 +53,7 @@ export interface Services {
   monitor: MonitorService
   pgroles: PgRolesService
   erd: ErdService
+  delivery: DeliveryService
 }
 
 export async function buildApp(ctx: AppContext, services: Services): Promise<FastifyInstance> {
@@ -131,6 +134,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
     registerMonitorRoutes(scope, ctx, services.monitor)
     registerPgRoleRoutes(scope, ctx, services.pgroles, services.connections)
     registerErdRoutes(scope, services.erd)
+    registerDeliveryRoutes(scope, ctx, services.delivery)
     registerAuditRoutes(scope, ctx)
   })
 

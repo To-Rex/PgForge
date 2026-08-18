@@ -12,6 +12,7 @@ import { BackupService } from './modules/backup/backup.service.js'
 import { BackupScheduler } from './modules/backup/scheduler.js'
 import { ConnectionsRepo } from './modules/connections/connections.repo.js'
 import { ConnectionsService } from './modules/connections/connections.service.js'
+import { DeliveryService } from './modules/delivery/delivery.service.js'
 import { DataService } from './modules/data/data.service.js'
 import { ErdService } from './modules/erd/erd.service.js'
 import { InspectorService } from './modules/inspector/inspector.service.js'
@@ -62,6 +63,8 @@ async function main(): Promise<void> {
   const monitor = new MonitorService(ctx)
   const pgroles = new PgRolesService(ctx)
   const erd = new ErdService(ctx)
+  const delivery = new DeliveryService(ctx, backups)
+  backups.setAutoDeliveryHook((backupId) => delivery.autoSend(backupId))
 
   const app = await buildApp(ctx, {
     auth,
@@ -76,6 +79,7 @@ async function main(): Promise<void> {
     monitor,
     pgroles,
     erd,
+    delivery,
   })
 
   if (config.secretSource === 'file') {

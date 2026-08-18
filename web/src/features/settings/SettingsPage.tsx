@@ -12,6 +12,7 @@ import { LANGUAGES, setLanguage, type LangCode } from '../../i18n/index.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useThemeStore } from '../../stores/theme.js'
 import { toast } from '../../stores/toast.js'
+import { DeliveryPanel } from './DeliveryPanel.js'
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
@@ -55,6 +56,7 @@ export function SettingsPage() {
       </div>
 
       {user?.role === 'admin' && <UsersPanel />}
+      {user?.role === 'admin' && <DeliveryPanel />}
 
       <div className="panel">
         <div className="panel-header">{t('settings.about')}</div>

@@ -131,6 +131,17 @@ export class BackupRepo {
       .map(toBackup)
   }
 
+  /** Failed/canceled backups for a schedule, oldest first. */
+  failedForSchedule(scheduleId: string): BackupRecord[] {
+    return this.store
+      .all<BackupRow>(
+        `${SELECT_BACKUP} WHERE b.schedule_id = :scheduleId AND b.status IN ('failed', 'canceled')
+         ORDER BY b.created_at ASC`,
+        { scheduleId },
+      )
+      .map(toBackup)
+  }
+
   listSchedules(): BackupSchedule[] {
     return this.store.all<ScheduleRow>(`${SELECT_SCHEDULE} ORDER BY s.name`).map(toSchedule)
   }

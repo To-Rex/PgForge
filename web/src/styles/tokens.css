@@ -64,6 +64,12 @@
   --syn-number: #d0a869;
   --syn-comment: #5c6370;
   --syn-ident: #e4e7ec;
+  /* Chart series — validated categorical palette (dark surface) */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
 }
 
 :root[data-theme='light'] {
@@ -99,4 +105,10 @@
   --syn-number: #8f6a2a;
   --syn-comment: #9aa1ad;
   --syn-ident: #1b1e24;
+  /* Chart series — validated categorical palette (light surface) */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
 }

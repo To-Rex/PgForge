@@ -39,10 +39,17 @@ function connEnv(conn: ResolvedConnection): NodeJS.ProcessEnv {
 }
 
 export class BackupService {
+  /** Wired at the composition root; fires after a scheduled backup succeeds. */
+  private autoDeliveryHook: ((backupId: string) => void) | null = null
+
   constructor(
     private readonly ctx: AppContext,
     private readonly repo: BackupRepo,
   ) {}
+
+  setAutoDeliveryHook(hook: (backupId: string) => void): void {
+    this.autoDeliveryHook = hook
+  }
 
   list(connectionId?: string): BackupRecord[] {
     return this.repo.list(connectionId)
@@ -110,7 +117,10 @@ export class BackupService {
           const size = await stat(filePath).then((s) => s.size).catch(() => null)
           this.ctx.jobs.finish(record.jobId, 'success')
           this.repo.markFinished(record.id, 'success', size, Date.now() - startedAt, null)
-          if (scheduleId) await this.pruneSchedule(scheduleId)
+          if (scheduleId) {
+            await this.pruneSchedule(scheduleId)
+            this.autoDeliveryHook?.(record.id)
+          }
         } else {
           const job = this.ctx.jobs.get(record.jobId)
           const error = code === null ? 'Canceled' : `pg_dump exited with code ${code}`
@@ -210,6 +220,7 @@ export class BackupService {
     dump.on('error', (err) => this.ctx.jobs.finish(jobId, 'failed', `pg_dump: ${err.message}`))
     restore.on('error', (err) => this.ctx.jobs.finish(jobId, 'failed', `pg_restore: ${err.message}`))
     this.ctx.jobs.attachProcess(jobId, restore)
+    this.armTimeout(restore, jobId, dump)
 
     dump.on('close', (code) => {
       if (code !== 0 && code !== null) {
@@ -305,6 +316,13 @@ export class BackupService {
     for (let i = 0; i < excess; i++) {
       await this.deleteBackup(backups[i]!.id)
     }
+    // Failed attempts have no files but their records must not pile up over
+    // months of unattended scheduling — keep the newest few for diagnosis.
+    const failed = this.repo.failedForSchedule(scheduleId)
+    const excessFailed = failed.length - 10
+    for (let i = 0; i < excessFailed; i++) {
+      this.repo.delete(failed[i]!.id)
+    }
   }
 
   private async createDatabaseIfRequested(req: RestoreRequest): Promise<void> {
@@ -338,7 +356,24 @@ export class BackupService {
           : err.message,
       )
     })
+    this.armTimeout(proc, jobId)
     return proc
+  }
+
+  /** A hung dump/restore must never survive forever — kill and mark failed. */
+  private armTimeout(proc: ChildProcess, jobId: string, extra?: ChildProcess): void {
+    const timeoutMs = this.ctx.config.backupTimeoutMs
+    const killTimer = setTimeout(() => {
+      this.ctx.jobs.finish(
+        jobId,
+        'failed',
+        `Timed out after ${Math.round(timeoutMs / 60_000)} min — process killed`,
+      )
+      proc.kill('SIGKILL')
+      extra?.kill('SIGKILL')
+    }, timeoutMs)
+    killTimer.unref()
+    proc.on('close', () => clearTimeout(killTimer))
   }
 }
 
