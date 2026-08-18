@@ -7,11 +7,12 @@ import { EmptyState } from '../../components/ui/basics.js'
 import { Tabs } from '../../components/ui/Tabs.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
 import { DataGrid } from './DataGrid.js'
+import { InlineSqlPane } from './InlineSqlPane.js'
 import { RoutinesPanel, SequencesPanel } from './RoutinesPanel.js'
 import { SchemaTree, type TreeSelection } from './SchemaTree.js'
 import { StructureView } from './StructureView.js'
 
-type ViewTab = 'data' | 'structure'
+type ViewTab = 'data' | 'structure' | 'sql'
 
 export function ExplorerPage() {
   const { t } = useTranslation()
@@ -76,14 +77,17 @@ export function ExplorerPage() {
                 tabs={[
                   { key: 'data', label: t('explorer.data') },
                   { key: 'structure', label: t('explorer.structure') },
+                  { key: 'sql', label: 'SQL' },
                 ]}
                 active={tab}
                 onChange={setTab}
               />
               {tab === 'data' ? (
                 <DataGrid key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
-              ) : (
+              ) : tab === 'structure' ? (
                 <StructureView key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
+              ) : (
+                <InlineSqlPane key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
               )}
             </>
           ) : schema && group === 'routines' ? (

@@ -25,6 +25,14 @@ export function formatCount(n: number | null | undefined): string {
   return new Intl.NumberFormat().format(n)
 }
 
+/** Compact row counts for dense UI (tree badges): 1234 → "1.2k". */
+export function formatCompact(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`
+  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  return `${(n / 1_000_000_000).toFixed(1)}B`
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const date = new Date(iso)

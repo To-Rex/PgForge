@@ -18,7 +18,7 @@ import { Button, Checkbox, Field, TextInput } from '../../components/ui/basics.j
 import { ConfirmDialog, Modal, useMenu } from '../../components/ui/overlays.js'
 import { QueryError } from '../../components/ui/QueryError.js'
 import { api, ApiError } from '../../lib/api.js'
-import { formatBytes } from '../../lib/format.js'
+import { formatBytes, formatCompact, formatCount } from '../../lib/format.js'
 import { useSchemas, useTables } from '../../lib/queries.js'
 import { functionTemplate, stashSql, viewTemplate } from '../../lib/sql-handoff.js'
 import { useAuthStore } from '../../stores/auth.js'
@@ -277,17 +277,22 @@ function SchemaBranch({
       {visible?.map((rel) => {
         const Icon = REL_ICON[rel.kind]
         const active = selectedSchema === schema && selectedTable === rel.name
+        const showRows = rel.kind === 'table' || rel.kind === 'matview'
         return (
           <button
             key={rel.name}
             type="button"
             className={`tree-node${active ? ' active' : ''}`}
             onClick={() => onSelect({ kind: 'relation', schema, name: rel.name, relKind: rel.kind })}
-            title={`${rel.name} · ${formatBytes(rel.totalBytes)}`}
+            title={
+              `${rel.name} · ${formatBytes(rel.totalBytes)}` +
+              (showRows ? ` · ~${formatCount(rel.rowEstimate)} ${t('common.rows')}` : '')
+            }
           >
             <span style={{ width: 13 }} />
             <Icon size={13} className="kind-icon" />
             <span className="label">{rel.name}</span>
+            {showRows && <span className="meta">{formatCompact(rel.rowEstimate)}</span>}
           </button>
         )
       })}

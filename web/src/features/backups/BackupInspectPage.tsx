@@ -14,12 +14,13 @@ import { formatBytes, formatDate } from '../../lib/format.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { toast } from '../../stores/toast.js'
 import { DataGrid } from '../explorer/DataGrid.js'
+import { InlineSqlPane } from '../explorer/InlineSqlPane.js'
 import { RoutinesPanel, SequencesPanel } from '../explorer/RoutinesPanel.js'
 import { SchemaTree, type TreeSelection } from '../explorer/SchemaTree.js'
 import { StructureView } from '../explorer/StructureView.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
 
-type ViewTab = 'data' | 'structure'
+type ViewTab = 'data' | 'structure' | 'sql'
 
 export function BackupInspectPage() {
   const { t } = useTranslation()
@@ -231,14 +232,17 @@ export function BackupInspectPage() {
                   tabs={[
                     { key: 'data', label: t('explorer.data') },
                     { key: 'structure', label: t('explorer.structure') },
+                    { key: 'sql', label: 'SQL' },
                   ]}
                   active={tab}
                   onChange={setTab}
                 />
                 {tab === 'data' ? (
                   <DataGrid key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
-                ) : (
+                ) : tab === 'structure' ? (
                   <StructureView key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
+                ) : (
+                  <InlineSqlPane key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
                 )}
               </>
             ) : schema && group === 'routines' ? (

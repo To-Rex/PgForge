@@ -1,6 +1,9 @@
 node_modules/
 dist/
-data/
+# Runtime data directories only — never source folders that happen to be
+# named "data" (a bare `data/` pattern would ignore server/src/modules/data).
+/data/
+/server/data/
 .env
 .env.local
 *.log
