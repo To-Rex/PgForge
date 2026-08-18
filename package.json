@@ -12,6 +12,9 @@
   "engines": {
     "node": ">=22.5.0"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.62.4"
+  },
   "scripts": {
     "dev:server": "npm run dev --workspace server",
     "dev:web": "npm run dev --workspace web",
