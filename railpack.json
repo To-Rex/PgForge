@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "22"
+  },
+  "steps": {
+    "build": {
+      "commands": ["npm install", "npm run build"]
+    }
+  },
+  "deploy": {
+    "aptPackages": ["postgresql-client"],
+    "startCommand": "npm start"
+  }
+}
