@@ -15,6 +15,8 @@ import { authenticate } from './plugins/auth.js'
 import { registerAuditRoutes } from './modules/audit/audit.routes.js'
 import { registerPublicAuthRoutes, registerUserRoutes } from './modules/auth/auth.routes.js'
 import type { AuthService } from './modules/auth/auth.service.js'
+import { registerInvitationRoutes, registerPublicInvitationRoutes } from './modules/auth/invitations.routes.js'
+import type { InvitationsService } from './modules/auth/invitations.service.js'
 import type { BackupRepo } from './modules/backup/backup.repo.js'
 import { registerBackupRoutes } from './modules/backup/backup.routes.js'
 import type { BackupService } from './modules/backup/backup.service.js'
@@ -36,6 +38,7 @@ import type { PgRolesService } from './modules/pgroles/pgroles.service.js'
 import type { HistoryRepo } from './modules/sql/history.repo.js'
 import { registerSqlRoutes } from './modules/sql/sql.routes.js'
 import type { SqlService } from './modules/sql/sql.service.js'
+import { registerSystemRoutes } from './modules/system/system.routes.js'
 
 const execFileAsync = promisify(execFile)
 const APP_VERSION = '1.0.0'
@@ -54,6 +57,7 @@ export interface Services {
   pgroles: PgRolesService
   erd: ErdService
   delivery: DeliveryService
+  invitations: InvitationsService
 }
 
 export async function buildApp(ctx: AppContext, services: Services): Promise<FastifyInstance> {
@@ -106,7 +110,8 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
   })
 
   // ── Public ──────────────────────────────────────────────────────────────
-  registerPublicAuthRoutes(app, ctx, services.auth)
+  const signIn = registerPublicAuthRoutes(app, ctx, services.auth)
+  registerPublicInvitationRoutes(app, ctx, services.invitations, signIn)
 
   let pgToolsVersion: string | null | undefined
   app.get('/api/meta', async (): Promise<AppMeta> => {
@@ -126,6 +131,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
   await app.register(async (scope) => {
     scope.addHook('onRequest', authenticate)
     registerUserRoutes(scope, ctx, services.auth)
+    registerInvitationRoutes(scope, ctx, services.invitations, services.delivery)
     registerConnectionRoutes(scope, ctx, services.connections)
     registerInspectorRoutes(scope, ctx, services.inspector, services.connections)
     registerDataRoutes(scope, ctx, services.data, services.connections)
@@ -136,6 +142,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
     registerErdRoutes(scope, services.erd)
     registerDeliveryRoutes(scope, ctx, services.delivery)
     registerAuditRoutes(scope, ctx)
+    registerSystemRoutes(scope, ctx, services.auth, services.backups, services.scheduler)
   })
 
   // ── Static web app (production build) ───────────────────────────────────

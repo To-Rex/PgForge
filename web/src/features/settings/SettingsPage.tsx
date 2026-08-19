@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AppRole, AppUser } from '@pgforge/shared'
+import { MIN_PASSWORD_LENGTH, type AppRole, type AppUser } from '@pgforge/shared'
 import { Badge, Button, Field, Select, TextInput } from '../../components/ui/basics.js'
 import { ConfirmDialog, Modal } from '../../components/ui/overlays.js'
 import { api, ApiError } from '../../lib/api.js'
@@ -12,7 +12,9 @@ import { LANGUAGES, setLanguage, type LangCode } from '../../i18n/index.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useThemeStore } from '../../stores/theme.js'
 import { toast } from '../../stores/toast.js'
+import { DangerPanel } from './DangerPanel.js'
 import { DeliveryPanel } from './DeliveryPanel.js'
+import { InvitesPanel } from './InvitesPanel.js'
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
@@ -56,7 +58,10 @@ export function SettingsPage() {
       </div>
 
       {user?.role === 'admin' && <UsersPanel />}
+      {user?.role === 'admin' && <InvitesPanel />}
       {user?.role === 'admin' && <DeliveryPanel />}
+
+      {user?.role === 'admin' && <DangerPanel />}
 
       <div className="panel">
         <div className="panel-header">{t('settings.about')}</div>
@@ -213,7 +218,7 @@ function UserDialog({ existing, onClose }: { existing: AppUser | null; onClose: 
           <Button
             variant="primary"
             loading={save.isPending}
-            disabled={!form.name || !form.email || (!existing && form.password.length < 10)}
+            disabled={!form.name || !form.email || (!existing && form.password.length < MIN_PASSWORD_LENGTH)}
             onClick={() => save.mutate()}
           >
             {t('common.save')}
@@ -235,7 +240,7 @@ function UserDialog({ existing, onClose }: { existing: AppUser | null; onClose: 
         <TextInput
           type="password"
           autoComplete="new-password"
-          minLength={10}
+          minLength={MIN_PASSWORD_LENGTH}
           value={form.password}
           onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
         />

@@ -149,13 +149,23 @@ export class JobManager {
     }
   }
 
-  /** Kill everything on shutdown so no orphan dumps keep running. */
-  shutdown(): void {
+  /** Kill every running job (server shutdown, factory reset). */
+  cancelAll(reason: string): void {
     for (const job of this.live.values()) {
       if (job.status === 'running') {
         job.proc?.kill('SIGTERM')
-        this.finish(job.id, 'canceled', 'Server shutdown')
+        this.finish(job.id, 'canceled', reason)
       }
     }
+  }
+
+  /** Forget all in-memory state after the store has been wiped. */
+  clearLive(): void {
+    this.live.clear()
+  }
+
+  /** Kill everything on shutdown so no orphan dumps keep running. */
+  shutdown(): void {
+    this.cancelAll('Server shutdown')
   }
 }

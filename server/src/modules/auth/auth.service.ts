@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { AppUser, CreateUserInput, SetupInput, UpdateUserInput } from '@pgforge/shared'
+import { MIN_PASSWORD_LENGTH, type AppUser, type CreateUserInput, type SetupInput, type UpdateUserInput } from '@pgforge/shared'
 import {
   BadRequestError,
   ConflictError,
@@ -173,8 +173,8 @@ export class AuthService {
   }
 
   private validatePassword(password: string): void {
-    if (password.length < 10) {
-      throw new BadRequestError('Password must be at least 10 characters long')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      throw new BadRequestError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long`)
     }
   }
 }

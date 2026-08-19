@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import type { AuthResponse } from '@pgforge/shared'
+import { MIN_PASSWORD_LENGTH, type AuthResponse } from '@pgforge/shared'
 import { Button, Field, TextInput } from '../../components/ui/basics.js'
 import { api, ApiError, applyAuth } from '../../lib/api.js'
 
@@ -57,7 +57,7 @@ export function SetupPage() {
             <TextInput
               type="password"
               autoComplete="new-password"
-              minLength={10}
+              minLength={MIN_PASSWORD_LENGTH}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

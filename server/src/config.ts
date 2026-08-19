@@ -13,6 +13,7 @@ const envSchema = z.object({
     .optional(),
   DATA_DIR: z.string().default('./data'),
   CORS_ORIGINS: z.string().default(''),
+  PUBLIC_URL: z.string().url().optional(),
   SQL_DEFAULT_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
   SQL_MAX_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
   SQL_MAX_ROWS: z.coerce.number().int().min(100).default(5000),
@@ -46,6 +47,8 @@ export interface AppConfig {
   dataDir: string
   backupDir: string
   corsOrigins: string[]
+  /** Public base URL used in emailed links; derived from the request when unset. */
+  publicUrl: string | undefined
   sql: { defaultTimeoutMs: number; maxTimeoutMs: number; maxRows: number }
   tools: { pgDump: string; pgRestore: string; psql: string }
   /** Hung dump/restore processes are killed after this long. */
@@ -100,6 +103,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     dataDir,
     backupDir: path.join(dataDir, 'backups'),
     corsOrigins: e.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
+    publicUrl: e.PUBLIC_URL,
     sql: {
       defaultTimeoutMs: e.SQL_DEFAULT_TIMEOUT_MS,
       maxTimeoutMs: e.SQL_MAX_TIMEOUT_MS,

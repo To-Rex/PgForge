@@ -130,6 +130,22 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  // v4 — single-use email invitations
+  `
+  CREATE TABLE invitations (
+    id          TEXT PRIMARY KEY,
+    email       TEXT NOT NULL,
+    role        TEXT NOT NULL CHECK (role IN ('admin','editor','viewer')),
+    token_hash  TEXT NOT NULL UNIQUE,
+    invited_by  TEXT,
+    email_sent  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    accepted_at TEXT,
+    revoked_at  TEXT
+  );
+  CREATE INDEX idx_invitations_email ON invitations(email);
+  `,
 ]
 
 export type SqlParams = Record<string, string | number | null>
@@ -178,6 +194,26 @@ export class MetaStore {
   run(sql: string, params: SqlParams = {}): { changes: number } {
     const result = this.db.prepare(sql).run(params)
     return { changes: Number(result.changes) }
+  }
+
+  /**
+   * Factory reset: empties every application table in one transaction and
+   * reclaims disk. Schema and migrations stay in place, so the server keeps
+   * running and simply returns to its first-run (setup) state.
+   */
+  wipeAll(): void {
+    const tables = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all() as { name: string }[]
+    this.db.exec('BEGIN')
+    try {
+      for (const { name } of tables) this.db.exec(`DELETE FROM "${name.replaceAll('"', '""')}"`)
+      this.db.exec('COMMIT')
+    } catch (err) {
+      this.db.exec('ROLLBACK')
+      throw err
+    }
+    this.db.exec('VACUUM')
   }
 
   close(): void {

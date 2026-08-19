@@ -1,10 +1,10 @@
-import type { AuthResponse, BootstrapInfo } from '@pgforge/shared'
+import { MIN_PASSWORD_LENGTH, type AuthResponse, type BootstrapInfo } from '@pgforge/shared'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { UnauthorizedError } from '../../core/errors.js'
 import { parse } from '../../core/validate.js'
 import type { AppContext } from '../../context.js'
-import { requireRole } from '../../plugins/auth.js'
+import { currentTokenGeneration, requireRole } from '../../plugins/auth.js'
 import { toAppUser, type UserRecord } from './users.repo.js'
 import type { AuthService } from './auth.service.js'
 
@@ -19,31 +19,33 @@ const loginSchema = z.object({
 const setupSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().max(200),
-  password: z.string().min(10).max(200),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(200),
 })
 
 const createUserSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().max(200),
-  password: z.string().min(10).max(200),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(200),
   role: z.enum(['admin', 'editor', 'viewer']),
 })
 
 const updateUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().max(200).optional(),
-  password: z.string().min(10).max(200).optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(200).optional(),
   role: z.enum(['admin', 'editor', 'viewer']).optional(),
 })
+
+export type SignInFn = (reply: FastifyReply, userId: string, req: FastifyRequest) => AuthResponse
 
 export function registerPublicAuthRoutes(
   app: FastifyInstance,
   ctx: AppContext,
   auth: AuthService,
-): void {
+): SignInFn {
   const signAccessToken = (user: UserRecord) =>
     app.jwt.sign(
-      { sub: user.id, email: user.email, name: user.name, role: user.role },
+      { sub: user.id, email: user.email, name: user.name, role: user.role, gen: currentTokenGeneration() },
       { expiresIn: ACCESS_TTL },
     )
 
@@ -109,6 +111,12 @@ export function registerPublicAuthRoutes(
     reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' })
     return { ok: true }
   })
+
+  return (reply, userId, req) => {
+    const user = auth.users.byId(userId)
+    if (!user) throw new UnauthorizedError('User no longer exists')
+    return authResponse(reply, user, auth.issueRefreshToken(user.id, req.ip, req.headers['user-agent'] ?? ''))
+  }
 }
 
 export function registerUserRoutes(

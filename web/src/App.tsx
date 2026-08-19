@@ -6,6 +6,7 @@ import { Toasts } from './components/ui/Toasts.js'
 import { AppShell } from './components/layout/AppShell.js'
 import { ApiError, bootstrapSession } from './lib/api.js'
 import { AuditPage } from './features/audit/AuditPage.js'
+import { InvitePage } from './features/auth/InvitePage.js'
 import { LoginPage } from './features/auth/LoginPage.js'
 import { SetupPage } from './features/auth/SetupPage.js'
 import { BackupInspectPage } from './features/backups/BackupInspectPage.js'
@@ -62,6 +63,7 @@ export function App() {
           <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/setup" element={<SetupPage />} />
+          <Route path="/invite/:token" element={<InvitePage />} />
           <Route
             element={
               <RequireAuth>

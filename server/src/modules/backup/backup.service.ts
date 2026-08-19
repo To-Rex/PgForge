@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type {
   BackupInspection,
@@ -293,6 +293,18 @@ export class BackupService {
       createdAt: nowIso(),
     })
     return { status: 'preparing', database, jobId, error: null }
+  }
+
+  /**
+   * Factory reset helper: drop every temporary inspection database that is
+   * still reachable and delete all backup artifacts from disk. Called before
+   * the metadata store is wiped so records are still available for lookup.
+   */
+  async wipeAllFiles(): Promise<void> {
+    for (const backup of this.repo.list()) {
+      await this.closeInspection(backup.id).catch(() => {})
+    }
+    await rm(this.ctx.config.backupDir, { recursive: true, force: true })
   }
 
   async closeInspection(backupId: string): Promise<void> {

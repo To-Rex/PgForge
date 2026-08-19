@@ -7,6 +7,7 @@ import { PgPoolManager } from './infra/pg.js'
 import { MetaStore } from './infra/store.js'
 import { AuditService } from './modules/audit/audit.service.js'
 import { AuthService } from './modules/auth/auth.service.js'
+import { InvitationsService } from './modules/auth/invitations.service.js'
 import { BackupRepo } from './modules/backup/backup.repo.js'
 import { BackupService } from './modules/backup/backup.service.js'
 import { BackupScheduler } from './modules/backup/scheduler.js'
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
   const pgroles = new PgRolesService(ctx)
   const erd = new ErdService(ctx)
   const delivery = new DeliveryService(ctx, backups)
+  const invitations = new InvitationsService(store)
   backups.setAutoDeliveryHook((backupId) => delivery.autoSend(backupId))
 
   const app = await buildApp(ctx, {
@@ -80,6 +82,7 @@ async function main(): Promise<void> {
     pgroles,
     erd,
     delivery,
+    invitations,
   })
 
   if (config.secretSource === 'file') {

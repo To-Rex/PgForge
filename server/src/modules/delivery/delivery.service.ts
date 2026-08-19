@@ -392,6 +392,31 @@ export class DeliveryService {
     return `uploaded to ${diskPath}`
   }
 
+  /** True when an SMTP transport can be built (stored settings or env defaults). */
+  emailConfigured(): boolean {
+    const cfg = this.storedOrDefaultEmail()
+    return Boolean(cfg.host && cfg.from)
+  }
+
+  /** Generic transactional mail (invitations etc.) through the configured SMTP. */
+  async sendMail(to: string, subject: string, text: string): Promise<void> {
+    const cfg = this.storedOrDefaultEmail()
+    if (!cfg.host || !cfg.from) throw new BadRequestError('Email is not configured')
+    const password = cfg.passwordEnc
+      ? decryptSecret(cfg.passwordEnc, this.ctx.config.credentialKey)
+      : undefined
+    const transport = nodemailer.createTransport({
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.security === 'ssl',
+      requireTLS: cfg.security === 'starttls',
+      ignoreTLS: cfg.security === 'none',
+      auth: cfg.username ? { user: cfg.username, pass: password ?? '' } : undefined,
+      connectionTimeout: 20_000,
+    })
+    await transport.sendMail({ from: cfg.from, to, subject, text })
+  }
+
   // ── Test, send, auto-send ───────────────────────────────────────────────
 
   async test(channel: DeliveryChannel): Promise<DeliveryTestResult> {
