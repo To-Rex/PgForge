@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "22"
+  },
+  "buildAptPackages": [
+    "ca-certificates",
+    "curl"
+  ],
+  "steps": {
+    "build": {
+      "commands": [
+        "npm install",
+        "npm run build"
+      ]
+    },
+    "pg-client": {
+      "commands": [
+        "install -d /usr/share/postgresql-common/pgdg",
+        "curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc",
+        "sh -c 'echo \"deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main\" > /etc/apt/sources.list.d/pgdg.list'",
+        "apt-get update",
+        "apt-get install -y --no-install-recommends postgresql-client-18",
+        "rm -rf /var/lib/apt/lists/*"
+      ],
+      "deployOutputs": [
+        "/usr/lib/postgresql/18",
+        "/usr/share/postgresql/18",
+        "/usr/lib/x86_64-linux-gnu/libpq.so.5",
+        "/usr/lib/x86_64-linux-gnu/libpq.so.5.*"
+      ]
+    }
+  },
+  "deploy": {
+    "aptPackages": [
+      "libreadline8",
+      "libgssapi-krb5-2",
+      "libldap-2.5-0",
+      "libsasl2-2",
+      "libssl3",
+      "zlib1g",
+      "liblz4-1",
+      "libzstd1"
+    ],
+    "startCommand": "npm start",
+    "variables": {
+      "PG_DUMP_PATH": "/usr/lib/postgresql/18/bin/pg_dump",
+      "PG_RESTORE_PATH": "/usr/lib/postgresql/18/bin/pg_restore",
+      "PSQL_PATH": "/usr/lib/postgresql/18/bin/psql"
+    }
+  }
+}
