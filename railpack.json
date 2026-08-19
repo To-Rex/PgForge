@@ -19,10 +19,11 @@
       "commands": [
         "install -d /usr/share/postgresql-common/pgdg",
         "curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc",
-        "sh -c 'echo \"deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main\" > /etc/apt/sources.list.d/pgdg.list'",
+        "sh -c '. /etc/os-release && echo \"deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main\" > /etc/apt/sources.list.d/pgdg.list && cat /etc/apt/sources.list.d/pgdg.list'",
         "apt-get update",
         "apt-get install -y --no-install-recommends postgresql-client-18",
         "sh -c 'cp -a /usr/lib/x86_64-linux-gnu/libpq.so.5* /usr/lib/postgresql/18/lib/'",
+        "/usr/lib/postgresql/18/bin/pg_dump --version",
         "rm -rf /var/lib/apt/lists/*"
       ],
       "deployOutputs": [
@@ -37,11 +38,11 @@
   },
   "deploy": {
     "aptPackages": [
-      "libreadline8",
+      "libreadline8t64",
       "libgssapi-krb5-2",
-      "libldap-2.5-0",
+      "libldap2",
       "libsasl2-2",
-      "libssl3",
+      "libssl3t64",
       "zlib1g",
       "liblz4-1",
       "libzstd1"
