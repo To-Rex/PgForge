@@ -67,6 +67,15 @@ APP_SECRET="$(openssl rand -base64 48)" npm start
 
 The server serves the built SPA and the API from one port (default `7070`). See `.env.example` for all settings (`PORT`, `DATA_DIR`, SQL timeouts and row caps, tool paths, CORS origins).
 
+### Docker / Dokploy
+
+A production `Dockerfile` is included (Node 22 + PostgreSQL 18 client tools from the official PGDG repository, so `pg_dump` can back up servers up to PostgreSQL 18). In Dokploy choose the **Dockerfile** build type, set the environment variables from `.env.example` (`APP_SECRET`, `PORT`, SMTP, …) and mount a persistent volume on **`/data`** — that is where the SQLite store, the secret file and all backup files live.
+
+```bash
+docker build -t pgforge .
+docker run -d -p 7070:7070 -v pgforge-data:/data -e APP_SECRET="$(openssl rand -base64 48)" pgforge
+```
+
 Notes for deployment:
 
 - Set a permanent `APP_SECRET`, or rely on the auto-generated `DATA_DIR/secret.key` — losing the secret invalidates sessions **and stored connection credentials** (the UI will then ask you to re-enter connection passwords).
