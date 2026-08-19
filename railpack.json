@@ -16,8 +16,16 @@
       ]
     },
     "pg-client": {
+      "inputs": [
+        {
+          "local": true,
+          "include": [
+            "deploy"
+          ]
+        }
+      ],
       "commands": [
-        "sh -c '. /etc/os-release && KEY=/tmp/pgdg.asc && LIST=/tmp/pgdg.list && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o \"$KEY\" && printf \"deb http://deb.debian.org/debian %s main\\ndeb http://deb.debian.org/debian %s-updates main\\ndeb http://deb.debian.org/debian-security %s-security main\\n\" \"$VERSION_CODENAME\" \"$VERSION_CODENAME\" \"$VERSION_CODENAME\" > \"$LIST\" && echo \"deb [signed-by=$KEY] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main\" >> \"$LIST\" && cat \"$LIST\" && apt-get -o Dir::Etc::SourceList=\"$LIST\" -o Dir::Etc::SourceParts=/dev/null update && apt-get -o Dir::Etc::SourceList=\"$LIST\" -o Dir::Etc::SourceParts=/dev/null install -y --no-install-recommends postgresql-client-18 && cp -a /usr/lib/x86_64-linux-gnu/libpq.so.5* /usr/lib/postgresql/18/lib/ && /usr/lib/postgresql/18/bin/pg_dump --version && rm -rf /var/lib/apt/lists/*'"
+        "sh ./deploy/install-pg-client.sh"
       ],
       "deployOutputs": [
         {
