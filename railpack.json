@@ -18,14 +18,11 @@
     "pg-client": {
       "inputs": [
         {
-          "local": true,
-          "include": [
-            "deploy"
-          ]
+          "step": "build"
         }
       ],
       "commands": [
-        "sh ./deploy/install-pg-client.sh"
+        "sh /app/deploy/install-pg-client.sh"
       ],
       "deployOutputs": [
         {
