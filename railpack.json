@@ -22,13 +22,16 @@
         "sh -c 'echo \"deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main\" > /etc/apt/sources.list.d/pgdg.list'",
         "apt-get update",
         "apt-get install -y --no-install-recommends postgresql-client-18",
+        "sh -c 'cp -a /usr/lib/x86_64-linux-gnu/libpq.so.5* /usr/lib/postgresql/18/lib/'",
         "rm -rf /var/lib/apt/lists/*"
       ],
       "deployOutputs": [
-        "/usr/lib/postgresql/18",
-        "/usr/share/postgresql/18",
-        "/usr/lib/x86_64-linux-gnu/libpq.so.5",
-        "/usr/lib/x86_64-linux-gnu/libpq.so.5.*"
+        {
+          "include": [
+            "/usr/lib/postgresql/18",
+            "/usr/share/postgresql/18"
+          ]
+        }
       ]
     }
   },
@@ -47,7 +50,8 @@
     "variables": {
       "PG_DUMP_PATH": "/usr/lib/postgresql/18/bin/pg_dump",
       "PG_RESTORE_PATH": "/usr/lib/postgresql/18/bin/pg_restore",
-      "PSQL_PATH": "/usr/lib/postgresql/18/bin/psql"
+      "PSQL_PATH": "/usr/lib/postgresql/18/bin/psql",
+      "LD_LIBRARY_PATH": "/usr/lib/postgresql/18/lib"
     }
   }
 }
