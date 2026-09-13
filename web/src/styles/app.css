@@ -415,8 +415,53 @@
   flex-shrink: 0;
 }
 
+/* The tree is three levels deep (database → schema → object): a guide rail
+   keeps the nesting readable while the indent stays narrow. */
 .tree-children {
-  padding-left: 14px;
+  padding-left: 10px;
+  margin-left: 6px;
+  border-left: 1px solid var(--border);
+}
+
+/* Expander split out of the row, so opening a database does not select it. */
+.tree-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.tree-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.tree-toggle .caret {
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.tree-toggle .caret.open {
+  transform: rotate(90deg);
+}
+
+/* Database rows are the tree roots — heavier than the schemas beneath them. */
+.tree-node.db-node .label {
+  font-weight: 500;
+}
+
+.tree-node.db-node.current {
+  background: var(--accent-bg);
+}
+
+.tree-node.db-node.current .label {
+  color: var(--accent);
 }
 
 .content-pane {

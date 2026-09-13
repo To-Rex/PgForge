@@ -27,6 +27,9 @@ export function ExplorerPage() {
   const select = (selection: TreeSelection) => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev)
+      // The tree spans every database, so a selection may also move the
+      // workspace to a different one — set both in a single history entry.
+      params.set('db', selection.db)
       params.set('schema', selection.schema)
       if (selection.kind === 'relation') {
         params.set('table', selection.name)
@@ -64,11 +67,13 @@ export function ExplorerPage() {
       <div className="explorer">
         <SchemaTree
           connId={connId}
+          connection={connection}
           db={db}
           selectedSchema={schema}
           selectedTable={table}
           selectedGroup={group}
           onSelect={select}
+          onSelectDb={setDb}
         />
         <div className="content-pane">
           {schema && table ? (

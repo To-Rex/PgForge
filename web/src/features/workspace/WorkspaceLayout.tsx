@@ -39,6 +39,7 @@ export function WorkspaceLayout() {
         // Object selections belong to the previous database.
         params.delete('schema')
         params.delete('table')
+        params.delete('group')
         return params
       },
       { replace: false },

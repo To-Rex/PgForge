@@ -7,7 +7,7 @@ Interface languages: 🇺🇿 Uzbek (default) · 🇷🇺 Russian · 🇬🇧 En
 ## Capabilities
 
 - **Connections** — unlimited PostgreSQL servers; credentials encrypted at rest (AES-256-GCM); per-connection read-only mode; connectivity testing.
-- **Explorer** — databases, schemas, tables, views, materialized views, functions, procedures, sequences, indexes, triggers, constraints; reconstructed DDL; guarded drop/truncate (type-the-name confirmation, CASCADE opt-in).
+- **Explorer** — one tree spanning the whole server: every database on the connection is a root node that expands into its schemas, tables, views, materialized views, functions, procedures, sequences, indexes, triggers and constraints. Switching database is a click in the tree (the header switcher still works); reconstructed DDL; guarded drop/truncate (type-the-name confirmation, CASCADE opt-in); create/drop database from the tree itself.
 - **Data browser** — pagination, typed filters, sorting, full-text search across text columns, inline cell editing, row insert/edit dialogs, multi-row delete (primary-key safe), CSV/JSON export streamed via server cursors.
 - **SQL editor** — CodeMirror 6 with schema-aware autocomplete, multiple tabs (persisted), multi-statement scripts (atomic), row-capped results via server-side cursors, cancellation (`pg_cancel_backend`), `EXPLAIN` plans, per-user query history, execution statistics.
 - **Backups** — native `pg_dump`/`pg_restore`/`psql`; custom/plain/tar formats; schema-only/data-only scopes; live job logs; downloads; restore into any registered server; restore from uploaded files; cron-scheduled backups with retention pruning; direct server-to-server migration (`pg_dump | pg_restore` streaming).

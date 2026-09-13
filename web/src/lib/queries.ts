@@ -21,10 +21,11 @@ export function useConnection(connId: string | undefined) {
   return data?.find((c) => c.id === connId)
 }
 
-export function useDatabases(connId: string) {
+export function useDatabases(connId: string, enabled = true) {
   return useQuery({
     queryKey: ['databases', connId],
     queryFn: () => api<DatabaseInfo[]>(`/api/connections/${connId}/databases`),
+    enabled,
   })
 }
 
