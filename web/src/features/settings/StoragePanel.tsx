@@ -329,7 +329,10 @@ export function StoragePanel() {
               )}
               <div>
                 {saved.envWritten
-                  ? t('storage.envWritten', { path: saved.envPath })
+                  ? t('storage.envWritten', {
+                      count: saved.envPaths.length,
+                      paths: saved.envPaths.join(', '),
+                    })
                   : t('storage.envNotWritten')}
               </div>
               <div className="storage-envline">

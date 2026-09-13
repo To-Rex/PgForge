@@ -50,8 +50,14 @@ export interface MetadataStatus {
   lastError: string | null
   /** Size of the local SQLite image backing the running process. */
   localBytes: number
-  /** Absolute path of the .env file the server would write to, if any. */
-  envPath: string | null
+  /**
+   * Every .env the server could load. A save writes the setting to all of
+   * them, so whichever one startup picks holds the same value.
+   */
+  envPaths: string[]
+  /** The one startup will actually read — the first that exists. */
+  envPathLoaded: string | null
+  /** True when at least one of `envPaths` can be written. */
   envWritable: boolean
   /** True when .env holds a different value than the running process uses. */
   restartRequired: boolean
@@ -87,7 +93,8 @@ export interface MetadataSaveResult {
   ok: boolean
   /** The exact line written; also what to paste into a platform env editor. */
   envLine: string
-  envPath: string | null
+  /** Files actually written; empty when none were writable. */
+  envPaths: string[]
   envWritten: boolean
   /** Always true: the store is wired once at boot. */
   restartRequired: boolean

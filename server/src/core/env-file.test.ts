@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -8,6 +8,8 @@ import {
   maskDatabaseUrl,
   readEnvVar,
   removeEnvVar,
+  resolveEnvFile,
+  resolveEnvFiles,
   upsertEnvVar,
 } from './env-file.js'
 
@@ -149,5 +151,63 @@ describe('maskDatabaseUrl', () => {
 
   it('keeps query parameters', () => {
     expect(maskDatabaseUrl('postgresql://u:p@h/db?sslmode=require')).toContain('sslmode=require')
+  })
+})
+
+
+/**
+ * Startup stops at the first `.env` it finds, but a save has to reach all of
+ * them: otherwise a value left in the other file resurfaces the moment the
+ * first one is added or removed.
+ */
+describe('resolveEnvFiles', () => {
+  /** Mirrors the real layout: the server runs from a subdirectory of the repo. */
+  const layout = (files: ('cwd' | 'parent')[]) => {
+    const cwd = path.join(dir, 'app')
+    mkdirSync(cwd, { recursive: true })
+    if (files.includes('cwd')) writeFileSync(path.join(cwd, '.env'), 'PORT=7070\n')
+    if (files.includes('parent')) writeFileSync(path.join(dir, '.env'), 'PORT=8080\n')
+    return cwd
+  }
+
+  it('returns the default location when none exist', () => {
+    const cwd = layout([])
+    expect(resolveEnvFiles(cwd)).toEqual([path.join(cwd, '.env')])
+  })
+
+  it('returns only the files that exist', () => {
+    const cwd = layout(['parent'])
+    expect(resolveEnvFiles(cwd)).toEqual([path.join(dir, '.env')])
+  })
+
+  it('returns both, nearest first', () => {
+    const cwd = layout(['cwd', 'parent'])
+    expect(resolveEnvFiles(cwd)).toEqual([path.join(cwd, '.env'), path.join(dir, '.env')])
+  })
+
+  it('resolveEnvFile names the one startup will read', () => {
+    const cwd = layout(['cwd', 'parent'])
+    expect(resolveEnvFile(cwd)).toBe(path.join(cwd, '.env'))
+  })
+
+  it('writing to every returned file leaves them agreeing', () => {
+    const cwd = layout(['cwd', 'parent'])
+    const files = resolveEnvFiles(cwd)
+    for (const target of files) upsertEnvVar(target, 'METADATA_URL', 'postgres://a/b')
+    expect(files.map((f) => readEnvVar(f, 'METADATA_URL'))).toEqual([
+      'postgres://a/b',
+      'postgres://a/b',
+    ])
+    // Unrelated keys in each file are untouched.
+    expect(readEnvVar(files[0]!, 'PORT')).toBe('7070')
+    expect(readEnvVar(files[1]!, 'PORT')).toBe('8080')
+  })
+
+  it('removing from every returned file leaves none behind', () => {
+    const cwd = layout(['cwd', 'parent'])
+    const files = resolveEnvFiles(cwd)
+    for (const target of files) upsertEnvVar(target, 'METADATA_URL', 'postgres://a/b')
+    for (const target of files) removeEnvVar(target, 'METADATA_URL')
+    expect(files.map((f) => readEnvVar(f, 'METADATA_URL'))).toEqual([null, null])
   })
 })

@@ -13,6 +13,7 @@ import {
   readEnvVar,
   removeEnvVar,
   resolveEnvFile,
+  resolveEnvFiles,
   upsertEnvVar,
 } from '../../core/env-file.js'
 import { PostgresMetadataBackend } from '../../infra/metadata-pg.js'
@@ -34,8 +35,29 @@ export class MetadataService {
     private readonly sync: MetadataSync | null,
   ) {}
 
-  private envFile(): string {
+  /** The file the next boot will read — what `restartRequired` compares against. */
+  private loadedEnvFile(): string {
     return resolveEnvFile()
+  }
+
+  /** Every file a save should keep in step. */
+  private envFiles(): string[] {
+    return resolveEnvFiles()
+  }
+
+  /**
+   * Applies a change to every `.env` the server could load. Startup reads only
+   * the first that exists, so leaving the others behind would let a stale value
+   * resurface the moment that file is added or removed.
+   */
+  private writeAll(apply: (file: string) => void): string[] {
+    const written: string[] = []
+    for (const file of this.envFiles()) {
+      if (!isEnvWritable(file)) continue
+      apply(file)
+      written.push(file)
+    }
+    return written
   }
 
   /**
@@ -50,8 +72,9 @@ export class MetadataService {
   }
 
   status(): MetadataStatus {
-    const envPath = this.envFile()
-    const fromFile = readEnvVar(envPath, ENV_KEY)
+    const envPaths = this.envFiles()
+    const loaded = this.loadedEnvFile()
+    const fromFile = readEnvVar(loaded, ENV_KEY)
     const active = this.ctx.config.metadataUrl
     const syncStatus = this.sync?.status
 
@@ -64,8 +87,9 @@ export class MetadataService {
       lastSyncedAt: syncStatus?.lastSyncedAt ?? null,
       lastError: syncStatus?.lastError ?? null,
       localBytes: this.ctx.store.byteSize(),
-      envPath,
-      envWritable: isEnvWritable(envPath),
+      envPaths,
+      envPathLoaded: loaded,
+      envWritable: envPaths.some(isEnvWritable),
       // Normalise both sides: absent and empty mean the same thing here.
       restartRequired: (fromFile ?? null) !== (active ?? null),
       backupDir: this.ctx.config.backupDir,
@@ -110,19 +134,13 @@ export class MetadataService {
       seededBytes = bytes.length
     }
 
-    const envPath = this.envFile()
-    const line = envLine(ENV_KEY, trimmed)
-    let envWritten = false
-    if (isEnvWritable(envPath)) {
-      upsertEnvVar(envPath, ENV_KEY, trimmed)
-      envWritten = true
-    }
+    const written = this.writeAll((file) => upsertEnvVar(file, ENV_KEY, trimmed))
 
     return {
       ok: true,
-      envLine: line,
-      envPath: envWritten ? envPath : null,
-      envWritten,
+      envLine: envLine(ENV_KEY, trimmed),
+      envPaths: written,
+      envWritten: written.length > 0,
       restartRequired: true,
       seededBytes,
     }
@@ -130,17 +148,12 @@ export class MetadataService {
 
   /** Reverts to the SQLite-only default by dropping the setting from .env. */
   disable(): MetadataSaveResult {
-    const envPath = this.envFile()
-    let envWritten = false
-    if (isEnvWritable(envPath)) {
-      removeEnvVar(envPath, ENV_KEY)
-      envWritten = true
-    }
+    const written = this.writeAll((file) => removeEnvVar(file, ENV_KEY))
     return {
       ok: true,
       envLine: `# ${ENV_KEY}=`,
-      envPath: envWritten ? envPath : null,
-      envWritten,
+      envPaths: written,
+      envWritten: written.length > 0,
       restartRequired: true,
       seededBytes: null,
     }

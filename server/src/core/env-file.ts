@@ -12,14 +12,33 @@ import path from 'node:path'
  * hands the caller the literal line to paste there.
  */
 
-/** Same resolution order the server uses when loading .env at startup. */
+/** The locations the server looks in at startup, in order. */
+const CANDIDATES = ['.env', '../.env'] as const
+
+/**
+ * Every `.env` the server could load, in search order.
+ *
+ * Startup stops at the first file that exists, so only one of these ever
+ * supplies values — but which one depends on what is present on disk. Writing
+ * a setting to all of them keeps them from disagreeing, whichever wins.
+ *
+ * When none exist yet, the single default location is returned so a save can
+ * create it.
+ */
+export function resolveEnvFiles(cwd: string = process.cwd()): string[] {
+  const existing = CANDIDATES.map((candidate) => path.resolve(cwd, candidate)).filter((file) =>
+    existsSync(file),
+  )
+  return existing.length > 0 ? existing : [path.resolve(cwd, '.env')]
+}
+
+/**
+ * The one file startup will actually read — the first that exists, or the
+ * default location. Use this to decide what the next boot will see; use
+ * `resolveEnvFiles` to decide where to write.
+ */
 export function resolveEnvFile(cwd: string = process.cwd()): string {
-  for (const candidate of ['.env', '../.env']) {
-    const resolved = path.resolve(cwd, candidate)
-    if (existsSync(resolved)) return resolved
-  }
-  // Nothing yet — the server would create one next to the working directory.
-  return path.resolve(cwd, '.env')
+  return resolveEnvFiles(cwd)[0]!
 }
 
 export function isEnvWritable(file: string): boolean {

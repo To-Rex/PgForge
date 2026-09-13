@@ -611,7 +611,7 @@ export const uz: Catalog = {
     willAdopt: "Bu bazada allaqachon nusxa bor ({{size}}, {{date}}). Restartda o'sha qabul qilinadi; hozirgi lokal ma'lumotlaringiz yuklanmaydi.",
     savedNeedsRestart: "Saqlandi. Qo'llanishi uchun serverni qayta ishga tushiring.",
     seeded: "Hozirgi ma'lumotlar yuklandi ({{size}}).",
-    envWritten: '{{path}} ga yozildi',
+    envWritten: '{{count}} ta faylga yozildi: {{paths}}',
     envNotWritten: "Bu yerda .env fayliga yozib bo'lmadi, shuning uchun hech narsa yozilmadi.",
     platformEnvHint: "Docker/Dokploy bilan deploy qilsangiz, konteyner ichidagi .env keyingi buildda yo'qoladi — bu qatorni platformaning muhit o'zgaruvchilari bo'limiga qo'shing.",
   },

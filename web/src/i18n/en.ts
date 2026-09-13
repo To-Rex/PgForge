@@ -609,7 +609,7 @@ export const en = {
     willAdopt: 'This database already holds a snapshot ({{size}}, {{date}}). It will be adopted on restart; your current local data is not uploaded.',
     savedNeedsRestart: 'Saved. Restart the server to apply it.',
     seeded: 'Current data uploaded ({{size}}).',
-    envWritten: 'Written to {{path}}',
+    envWritten: 'Written to {{count}} file(s): {{paths}}',
     envNotWritten: 'The .env file is not writable here, so nothing was written to it.',
     platformEnvHint: 'If you deploy with Docker/Dokploy, the .env inside the container is lost on the next build — add this line to the platform environment editor instead.',
   },
