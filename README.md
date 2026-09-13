@@ -8,10 +8,14 @@ Interface languages: 🇺🇿 Uzbek (default) · 🇷🇺 Russian · 🇬🇧 En
 
 - **Connections** — unlimited PostgreSQL servers; credentials encrypted at rest (AES-256-GCM); per-connection read-only mode; connectivity testing.
 - **Explorer** — one tree spanning the whole server: every database on the connection is a root node that expands into its schemas, tables, views, materialized views, functions, procedures, sequences, indexes, triggers and constraints. Switching database is a click in the tree (the header switcher still works); reconstructed DDL; guarded drop/truncate (type-the-name confirmation, CASCADE opt-in); create/drop database from the tree itself.
-- **Data browser** — pagination, typed filters, sorting, full-text search across text columns, inline cell editing, row insert/edit dialogs, multi-row delete (primary-key safe), CSV/JSON export streamed via server cursors.
-- **SQL editor** — CodeMirror 6 with schema-aware autocomplete, multiple tabs (persisted), multi-statement scripts (atomic), row-capped results via server-side cursors, cancellation (`pg_cancel_backend`), `EXPLAIN` plans, per-user query history, execution statistics.
+- **Data browser** — pagination, typed filters, sorting, full-text search across text columns, inline cell editing, row insert/edit dialogs, multi-row delete (primary-key safe), CSV/JSON export streamed via server cursors. Foreign-key values are navigable: one click opens the referenced table filtered to the parent row (composite keys included), and the filtered view is a shareable URL.
+- **SQL editor** — CodeMirror 6 with schema-aware autocomplete, multiple tabs (persisted), multi-statement scripts (atomic), row-capped results via server-side cursors, cancellation (`pg_cancel_backend`), per-user query history, execution statistics.
+- **Query plans** — `EXPLAIN` and `EXPLAIN ANALYZE` rendered as a plan tree with per-node exclusive time, estimated-vs-actual row counts, and flags for row misestimates, wasteful filters, large sequential scans and sorts that spilled to disk. `ANALYZE` on a writing statement asks first, because it really runs it.
+- **Saved queries** — named, described, editable SQL snippets, optionally pinned to one connection or shared with the whole team. Unlike history, they are never pruned.
 - **Backups** — native `pg_dump`/`pg_restore`/`psql`; custom/plain/tar formats; schema-only/data-only scopes; live job logs; downloads; restore into any registered server; restore from uploaded files; cron-scheduled backups with retention pruning; direct server-to-server migration (`pg_dump | pg_restore` streaming).
 - **Monitoring** — database statistics, cache hit ratio, active sessions with cancel/terminate, lock inspection with blocking PIDs, slow queries (`pg_stat_statements` when available), per-table statistics (vacuum/analyze, dead tuples, scans).
+- **Index advice** — findings derived from the statistics collector and the catalog: foreign keys with no supporting index, tables read by sequential scan far more than by index, unused and duplicate indexes, dead-tuple build-up, never-analyzed tables. Every finding shows the numbers behind it and hands over the exact statement — advice, never automation.
+- **Command palette** — ⌘K/Ctrl+K finds any table, view, column, function, sequence or schema, in the current database or across every database on the connection, and jumps straight to it.
 - **Roles** — PostgreSQL role management (attributes, passwords, memberships), table privilege grants/revokes.
 - **ER diagram** — foreign-key graph per schema with draggable tables, pan/zoom.
 - **Platform access control** — admin/editor/viewer roles; viewers get read-only SQL enforced by `READ ONLY` transactions server-side.
@@ -27,11 +31,12 @@ server/   Fastify 5 API + job engine
   src/core/      Pure domain: config, crypto, errors, identifier quoting, SQL script lexer
   src/infra/     Adapters: SQLite metadata store (node:sqlite), PG pool manager, job manager
   src/modules/   Feature verticals (auth, connections, inspector, data, sql, backup,
-                 monitor, pgroles, erd, audit) — each: routes → service → repository
+                 monitor, pgroles, erd, search, audit) — each: routes → service → repository
   src/index.ts   Composition root: every dependency wired exactly once
 web/      React 18 + Vite SPA
   src/components/  Design system (hand-built, CSS custom properties, dark/light)
   src/features/    One directory per page/feature
+  src/lib/         Pure helpers (URL filter codec, SQL classification, formatting)
   src/i18n/        uz / ru / en catalogs (typed against the English catalog)
 ```
 
@@ -85,5 +90,5 @@ Notes for deployment:
 ## Verification
 
 - `npm run typecheck` — strict TS across all workspaces
-- `npm test` — unit tests for crypto, the SQL script lexer, and the filter builder
+- `npm test` — unit tests across both workspaces (118): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting. Pure modules only — no DOM, so the suite stays fast.
 - An end-to-end pass against a live PostgreSQL 18 exercised auth, catalog, SQL, data CRUD, ERD, monitoring, roles, audit, and a backup → restore round-trip with data verification.

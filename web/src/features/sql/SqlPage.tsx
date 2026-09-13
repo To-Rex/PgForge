@@ -1,18 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, History, Play, Plus, Sparkles, X } from 'lucide-react'
+import { Ban, BookMarked, Gauge, History, Pencil, Play, Plus, Save, Sparkles, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ExplainResponse, QueryHistoryEntry, SqlResponse } from '@pgforge/shared'
+import type { ExplainResponse, QueryHistoryEntry, SavedQuery, SqlResponse } from '@pgforge/shared'
 import { DbSwitcher } from '../../components/layout/DbSwitcher.js'
 import { PathBar } from '../../components/layout/PathBar.js'
-import { Button, EmptyState } from '../../components/ui/basics.js'
-import { Modal } from '../../components/ui/overlays.js'
+import { Badge, Button, Checkbox, EmptyState, Field, TextInput } from '../../components/ui/basics.js'
+import { ConfirmDialog, Modal } from '../../components/ui/overlays.js'
 import { api, ApiError } from '../../lib/api.js'
 import { formatDate, formatMs, newExecId } from '../../lib/format.js'
-import { useAutocomplete } from '../../lib/queries.js'
+import { useAutocomplete, useSavedQueries } from '../../lib/queries.js'
+import { looksReadOnly } from '../../lib/sql-kind.js'
 import { takePendingSql } from '../../lib/sql-handoff.js'
+import { useAuthStore } from '../../stores/auth.js'
 import { toast } from '../../stores/toast.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
+import { PlanView } from './PlanView.js'
 import { ResultsPanel } from './ResultsPanel.js'
 import { SqlEditor, type SqlEditorHandle } from './SqlEditor.js'
 
@@ -43,8 +46,11 @@ export function SqlPage() {
   const [state, setState] = useState(() => loadTabs(connId))
   const [response, setResponse] = useState<SqlResponse | null>(null)
   const [runningExecId, setRunningExecId] = useState<string | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  const [sidePane, setSidePane] = useState<'history' | 'saved' | null>(null)
   const [explain, setExplain] = useState<ExplainResponse | null>(null)
+  const [savingQuery, setSavingQuery] = useState(false)
+  // EXPLAIN ANALYZE really runs the statement, so a write needs a deliberate yes.
+  const [confirmAnalyze, setConfirmAnalyze] = useState<string | null>(null)
   const editorRef = useRef<SqlEditorHandle | null>(null)
 
   const autocomplete = useAutocomplete(connId, db)
@@ -107,6 +113,22 @@ export function SqlPage() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
   })
 
+  /** Current statement: the selection if there is one, else the whole tab. */
+  const currentSql = () => {
+    const handle = editorRef.current
+    return (handle?.getSelection() || handle?.getText() || '').trim()
+  }
+
+  const runExplain = (analyze: boolean) => {
+    const text = currentSql()
+    if (!text) return
+    if (analyze && !looksReadOnly(text)) {
+      setConfirmAnalyze(text)
+      return
+    }
+    explainQuery.mutate({ sql: text, analyze })
+  }
+
   const run = useCallback(() => {
     const handle = editorRef.current
     if (!handle || execute.isPending) return
@@ -144,11 +166,18 @@ export function SqlPage() {
     setResponse(null)
   }
 
-  const loadFromHistory = (entry: QueryHistoryEntry) => {
-    editorRef.current?.setText(entry.sql)
-    updateTabSql(entry.sql)
-    setHistoryOpen(false)
+  const loadSql = (sql: string) => {
+    editorRef.current?.setText(sql)
+    updateTabSql(sql)
   }
+
+  const loadFromHistory = (entry: QueryHistoryEntry) => {
+    loadSql(entry.sql)
+    setSidePane(null)
+  }
+
+  const togglePane = (pane: 'history' | 'saved') =>
+    setSidePane((current) => (current === pane ? null : pane))
 
   return (
     <>
@@ -202,21 +231,42 @@ export function SqlPage() {
             <Button
               size="sm"
               icon={Sparkles}
-              loading={explainQuery.isPending}
-              onClick={() => {
-                const handle = editorRef.current
-                const text = handle?.getSelection() || handle?.getText()
-                if (text?.trim()) explainQuery.mutate({ sql: text, analyze: false })
-              }}
+              loading={explainQuery.isPending && !explainQuery.variables?.analyze}
+              onClick={() => runExplain(false)}
             >
               {t('sql.explain')}
+            </Button>
+            <Button
+              size="sm"
+              icon={Gauge}
+              loading={explainQuery.isPending && explainQuery.variables?.analyze === true}
+              onClick={() => runExplain(true)}
+              title={t('sql.explainAnalyzeHint')}
+            >
+              {t('sql.explainAnalyze')}
             </Button>
             <span className="grow" />
             <Button
               size="sm"
-              variant={historyOpen ? 'primary' : 'outline'}
+              icon={Save}
+              disabled={!activeTab.sql.trim()}
+              onClick={() => setSavingQuery(true)}
+            >
+              {t('sql.save')}
+            </Button>
+            <Button
+              size="sm"
+              variant={sidePane === 'saved' ? 'primary' : 'outline'}
+              icon={BookMarked}
+              onClick={() => togglePane('saved')}
+            >
+              {t('sql.saved')}
+            </Button>
+            <Button
+              size="sm"
+              variant={sidePane === 'history' ? 'primary' : 'outline'}
               icon={History}
-              onClick={() => setHistoryOpen((v) => !v)}
+              onClick={() => togglePane('history')}
             >
               {t('sql.history')}
             </Button>
@@ -235,15 +285,47 @@ export function SqlPage() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <ResultsPanel response={response} running={execute.isPending} />
           </div>
-          {historyOpen && <HistoryPane connId={connId} onPick={loadFromHistory} />}
+          {sidePane === 'history' && <HistoryPane connId={connId} onPick={loadFromHistory} />}
+          {sidePane === 'saved' && (
+            <SavedPane
+              connId={connId}
+              onPick={(query) => {
+                loadSql(query.sql)
+                setSidePane(null)
+              }}
+            />
+          )}
         </div>
       </div>
       {explain && (
         <Modal title={t('sql.plan')} onClose={() => setExplain(null)} wide>
-          <pre className="log-view" style={{ maxHeight: '60vh' }}>
-            {JSON.stringify(explain.plan, null, 2)}
-          </pre>
+          <PlanView response={explain} />
         </Modal>
+      )}
+      {confirmAnalyze && (
+        <ConfirmDialog
+          title={t('sql.explainAnalyze')}
+          message={t('sql.explainAnalyzeWarning')}
+          confirmLabel={t('sql.explainAnalyzeRun')}
+          loading={explainQuery.isPending}
+          onConfirm={() => {
+            explainQuery.mutate({ sql: confirmAnalyze, analyze: true })
+            setConfirmAnalyze(null)
+          }}
+          onClose={() => setConfirmAnalyze(null)}
+        />
+      )}
+      {savingQuery && (
+        <SaveQueryDialog
+          connId={connId}
+          sql={activeTab.sql}
+          suggestedName={activeTab.title}
+          onClose={() => setSavingQuery(false)}
+          onSaved={() => {
+            setSavingQuery(false)
+            setSidePane('saved')
+          }}
+        />
       )}
     </>
   )
@@ -269,16 +351,7 @@ function HistoryPane({
   })
 
   return (
-    <div
-      style={{
-        width: 300,
-        borderLeft: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: 'var(--surface)',
-      }}
-    >
+    <div className="side-pane">
       <div className="panel-header" style={{ borderBottom: '1px solid var(--border)' }}>
         {t('sql.history')}
         <Button size="sm" variant="ghost" onClick={() => clear.mutate()}>
@@ -318,5 +391,183 @@ function HistoryPane({
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * Saved snippets: what history cannot be. History is a rolling log that prunes
+ * itself; these are named, editable, and kept until deleted — and optionally
+ * shared, so a team's useful queries stop living in someone's scratch file.
+ */
+function SavedPane({
+  connId,
+  onPick,
+}: {
+  connId: string
+  onPick: (query: SavedQuery) => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const saved = useSavedQueries(connId)
+  const [deleting, setDeleting] = useState<SavedQuery | null>(null)
+  const [editing, setEditing] = useState<SavedQuery | null>(null)
+
+  const remove = useMutation({
+    mutationFn: (query: SavedQuery) =>
+      api(`/api/saved-queries/${query.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] })
+      setDeleting(null)
+      toast.ok(t('common.success'))
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
+  })
+
+  return (
+    <div className="side-pane">
+      <div className="panel-header" style={{ borderBottom: '1px solid var(--border)' }}>
+        {t('sql.saved')}
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {saved.isLoading && (
+          <div className="row" style={{ padding: 16, justifyContent: 'center' }}>
+            <span className="spinner" />
+          </div>
+        )}
+        {saved.data?.length === 0 && <EmptyState title={t('sql.savedEmpty')} hint={t('sql.savedHint')} />}
+        {saved.data?.map((query) => (
+          <div key={query.id} className="saved-item">
+            <button type="button" className="saved-open" onClick={() => onPick(query)}>
+              <div className="row" style={{ gap: 6 }}>
+                <span className="truncate grow" style={{ fontSize: 'var(--text-sm)' }}>
+                  {query.name}
+                </span>
+                {query.shared && <Badge kind="muted">{t('sql.shared')}</Badge>}
+              </div>
+              {query.description && <div className="faint truncate">{query.description}</div>}
+              <div className="mono truncate faint" style={{ fontSize: 10, marginTop: 2 }}>
+                {query.sql}
+              </div>
+            </button>
+            {(query.ownerId === user?.id || user?.role === 'admin') && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Pencil}
+                  aria-label={t('common.edit')}
+                  onClick={() => setEditing(query)}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Trash2}
+                  aria-label={t('common.delete')}
+                  onClick={() => setDeleting(query)}
+                />
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      {deleting && (
+        <ConfirmDialog
+          title={t('common.delete')}
+          message={deleting.name}
+          loading={remove.isPending}
+          onConfirm={() => remove.mutate(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+      {editing && (
+        <SaveQueryDialog
+          connId={connId}
+          sql={editing.sql}
+          suggestedName={editing.name}
+          existing={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => setEditing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function SaveQueryDialog({
+  connId,
+  sql,
+  suggestedName,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  connId: string
+  sql: string
+  suggestedName: string
+  /** Present when renaming/re-scoping an existing snippet rather than creating one. */
+  existing?: SavedQuery
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const [name, setName] = useState(suggestedName)
+  const [description, setDescription] = useState(existing?.description ?? '')
+  const [shared, setShared] = useState(existing?.shared ?? false)
+  const [pinned, setPinned] = useState(existing ? existing.connectionId !== null : true)
+
+  const create = useMutation({
+    mutationFn: () =>
+      api(existing ? `/api/saved-queries/${existing.id}` : '/api/saved-queries', {
+        method: existing ? 'PATCH' : 'POST',
+        body: {
+          name,
+          description: description || null,
+          sql,
+          connectionId: pinned ? connId : null,
+          shared,
+        },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['saved-queries'] })
+      toast.ok(t('common.success'))
+      onSaved()
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
+  })
+
+  return (
+    <Modal
+      title={existing ? t('common.edit') : t('sql.save')}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!name.trim()}
+            loading={create.isPending}
+            onClick={() => create.mutate()}
+          >
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <Field label={t('common.name')}>
+        <TextInput value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      </Field>
+      <Field label={t('common.description')}>
+        <TextInput value={description} onChange={(e) => setDescription(e.target.value)} />
+      </Field>
+      <Checkbox label={t('sql.pinToConnection')} checked={pinned} onChange={setPinned} />
+      {user?.role !== 'viewer' && (
+        <Checkbox label={t('sql.shareWithTeam')} checked={shared} onChange={setShared} />
+      )}
+    </Modal>
   )
 }

@@ -5,8 +5,9 @@ import { DbSwitcher } from '../../components/layout/DbSwitcher.js'
 import { PathBar, type PathSegment } from '../../components/layout/PathBar.js'
 import { EmptyState } from '../../components/ui/basics.js'
 import { Tabs } from '../../components/ui/Tabs.js'
+import { decodeFilters, encodeFilters, filterSignature } from '../../lib/filters.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
-import { DataGrid } from './DataGrid.js'
+import { DataGrid, type GridNavigation } from './DataGrid.js'
 import { InlineSqlPane } from './InlineSqlPane.js'
 import { RoutinesPanel, SequencesPanel } from './RoutinesPanel.js'
 import { SchemaTree, type TreeSelection } from './SchemaTree.js'
@@ -23,6 +24,9 @@ export function ExplorerPage() {
   const table = searchParams.get('table')
   const group = searchParams.get('group') as 'routines' | 'sequences' | null
   const tab = (searchParams.get('tab') as ViewTab | null) ?? 'data'
+  // Grid filters live in the URL so a filtered view — including the one a
+  // foreign-key jump lands on — is linkable and survives a reload.
+  const gridFilters = decodeFilters(searchParams.getAll('f'))
 
   const select = (selection: TreeSelection) => {
     setSearchParams((prev) => {
@@ -31,6 +35,7 @@ export function ExplorerPage() {
       // workspace to a different one — set both in a single history entry.
       params.set('db', selection.db)
       params.set('schema', selection.schema)
+      params.delete('f')
       if (selection.kind === 'relation') {
         params.set('table', selection.name)
         params.delete('group')
@@ -38,6 +43,20 @@ export function ExplorerPage() {
         params.set('group', selection.kind)
         params.delete('table')
       }
+      return params
+    })
+  }
+
+  /** Following a foreign key: land on the parent table, filtered to its row. */
+  const navigate = (target: GridNavigation) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev)
+      params.set('schema', target.schema)
+      params.set('table', target.table)
+      params.set('tab', 'data')
+      params.delete('group')
+      params.delete('f')
+      for (const encoded of encodeFilters(target.filters)) params.append('f', encoded)
       return params
     })
   }
@@ -88,7 +107,15 @@ export function ExplorerPage() {
                 onChange={setTab}
               />
               {tab === 'data' ? (
-                <DataGrid key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
+                <DataGrid
+                  key={`${db}.${schema}.${table}.${filterSignature(gridFilters)}`}
+                  connId={connId}
+                  db={db}
+                  schema={schema}
+                  table={table}
+                  initialFilters={gridFilters}
+                  onNavigate={navigate}
+                />
               ) : tab === 'structure' ? (
                 <StructureView key={`${db}.${schema}.${table}`} connId={connId} db={db} schema={schema} table={table} />
               ) : (

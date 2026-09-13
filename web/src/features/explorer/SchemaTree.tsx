@@ -12,12 +12,13 @@ import {
   RefreshCw,
   Table2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import type { ConnectionSummary, CreateDatabaseInput, DatabaseInfo, RelKind } from '@pgforge/shared'
 import { Button, Checkbox, Field, TextInput } from '../../components/ui/basics.js'
 import { ConfirmDialog, Modal, useMenu, type MenuEntry } from '../../components/ui/overlays.js'
+import { VirtualList } from '../../components/ui/VirtualList.js'
 import { QueryError } from '../../components/ui/QueryError.js'
 import { api, ApiError } from '../../lib/api.js'
 import { formatBytes, formatCompact, formatCount } from '../../lib/format.js'
@@ -47,6 +48,9 @@ const REL_ICON: Record<RelKind, typeof Table2> = {
   matview: Layers,
   foreign: Table2,
 }
+
+/** Must match the fixed `.tree-node` height in app.css — windowing needs it exact. */
+const TREE_ROW_HEIGHT = 24
 
 /** Flat key set, so schema open-state stays distinct per database.
  *  Length-prefixed, so no database/schema name pair can collide. */
@@ -92,6 +96,8 @@ export function SchemaTree({
   const [cascade, setCascade] = useState(false)
   const [force, setForce] = useState(false)
   const { open: openMenu, menu } = useMenu()
+  // Shared scrollport: every relation list windows against this one element.
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const canEdit = user?.role !== 'viewer'
   const writable = connection !== undefined && !connection.readOnly
@@ -267,7 +273,7 @@ export function SchemaTree({
           aria-label={t('common.refresh')}
         />
       </div>
-      <div className="tree-scroll">
+      <div className="tree-scroll" ref={scrollRef}>
         {!multiDb && (
           <DatabaseBranch
             connId={connId}
@@ -283,6 +289,7 @@ export function SchemaTree({
             onSelect={onSelect}
             onDialog={setDialog}
             onMenu={openMenu}
+            scrollParentRef={scrollRef}
           />
         )}
         {multiDb && databases.isLoading && (
@@ -346,6 +353,7 @@ export function SchemaTree({
                     onSelect={onSelect}
                     onDialog={setDialog}
                     onMenu={openMenu}
+                    scrollParentRef={scrollRef}
                   />
                 </div>
               )}
@@ -435,6 +443,7 @@ function DatabaseBranch({
   onSelect,
   onDialog,
   onMenu,
+  scrollParentRef,
 }: {
   connId: string
   db: string
@@ -450,6 +459,7 @@ function DatabaseBranch({
   onSelect: (selection: TreeSelection) => void
   onDialog: (dialog: TreeDialog) => void
   onMenu: (e: React.MouseEvent, entries: MenuEntry[]) => void
+  scrollParentRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -510,6 +520,7 @@ function DatabaseBranch({
               selectedTable={isCurrent ? selectedTable : null}
               selectedGroup={isCurrent ? selectedGroup : null}
               onSelect={onSelect}
+              scrollParentRef={scrollParentRef}
             />
           </div>
         )}
@@ -559,6 +570,7 @@ function SchemaBranch({
   selectedTable,
   selectedGroup,
   onSelect,
+  scrollParentRef,
 }: {
   connId: string
   db: string
@@ -568,6 +580,7 @@ function SchemaBranch({
   selectedTable: string | null
   selectedGroup: 'routines' | 'sequences' | null
   onSelect: (selection: TreeSelection) => void
+  scrollParentRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useTranslation()
   const tables = useTables(connId, db, schema)
@@ -586,28 +599,37 @@ function SchemaBranch({
           {tables.error instanceof Error ? tables.error.message : t('errors.generic')}
         </div>
       )}
-      {visible?.map((rel) => {
-        const Icon = REL_ICON[rel.kind]
-        const active = selectedSchema === schema && selectedTable === rel.name
-        const showRows = rel.kind === 'table' || rel.kind === 'matview'
-        return (
-          <button
-            key={rel.name}
-            type="button"
-            className={`tree-node${active ? ' active' : ''}`}
-            onClick={() => onSelect({ kind: 'relation', db, schema, name: rel.name, relKind: rel.kind })}
-            title={
-              `${rel.name} · ${formatBytes(rel.totalBytes)}` +
-              (showRows ? ` · ~${formatCount(rel.rowEstimate)} ${t('common.rows')}` : '')
-            }
-          >
-            <span style={{ width: 13 }} />
-            <Icon size={13} className="kind-icon" />
-            <span className="label">{rel.name}</span>
-            {showRows && <span className="meta">{formatCompact(rel.rowEstimate)}</span>}
-          </button>
-        )
-      })}
+      {/* A schema with thousands of relations must not put thousands of rows in
+          the DOM; below the threshold VirtualList renders them all as before. */}
+      <VirtualList
+        items={visible ?? []}
+        itemHeight={TREE_ROW_HEIGHT}
+        scrollParentRef={scrollParentRef}
+        keyOf={(rel) => rel.name}
+        renderItem={(rel) => {
+          const Icon = REL_ICON[rel.kind]
+          const active = selectedSchema === schema && selectedTable === rel.name
+          const showRows = rel.kind === 'table' || rel.kind === 'matview'
+          return (
+            <button
+              type="button"
+              className={`tree-node${active ? ' active' : ''}`}
+              onClick={() =>
+                onSelect({ kind: 'relation', db, schema, name: rel.name, relKind: rel.kind })
+              }
+              title={
+                `${rel.name} · ${formatBytes(rel.totalBytes)}` +
+                (showRows ? ` · ~${formatCount(rel.rowEstimate)} ${t('common.rows')}` : '')
+              }
+            >
+              <span style={{ width: 13 }} />
+              <Icon size={13} className="kind-icon" />
+              <span className="label">{rel.name}</span>
+              {showRows && <span className="meta">{formatCompact(rel.rowEstimate)}</span>}
+            </button>
+          )
+        }}
+      />
       <button
         type="button"
         className={`tree-node${selectedSchema === schema && selectedGroup === 'routines' ? ' active' : ''}`}

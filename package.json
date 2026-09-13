@@ -2,7 +2,7 @@
   "name": "pgforge",
   "private": true,
   "version": "1.0.0",
-  "description": "PgForge — PostgreSQL management platform",
+  "description": "PgForge \u2014 PostgreSQL management platform",
   "type": "module",
   "workspaces": [
     "shared",
@@ -20,7 +20,7 @@
     "dev:web": "npm run dev --workspace web",
     "build": "npm run build --workspace server && npm run build --workspace web",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspace server",
+    "test": "npm run test --workspaces --if-present",
     "start": "NODE_ENV=production node server/dist/index.js"
   }
 }

@@ -1,8 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Ban, OctagonX, RefreshCw } from 'lucide-react'
+import { Ban, ClipboardCopy, Lightbulb, OctagonX, RefreshCw, Terminal } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type {
+  AdviceItem,
+  AdviceSeverity,
   DbStats,
   LockInfo,
   SessionInfo,
@@ -24,11 +27,13 @@ import {
 } from '../../lib/format.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { toast } from '../../stores/toast.js'
+import { useAdvice } from '../../lib/queries.js'
+import { stashSql } from '../../lib/sql-handoff.js'
 import { useWorkspace } from '../workspace/WorkspaceLayout.js'
 import { HBars, LineChart } from './charts.js'
 import { computeRates, pushSample } from './series-store.js'
 
-type MonitorTab = 'overview' | 'sessions' | 'locks' | 'slow' | 'tables'
+type MonitorTab = 'overview' | 'sessions' | 'locks' | 'slow' | 'tables' | 'advice'
 
 export function MonitorPage() {
   const { t } = useTranslation()
@@ -53,6 +58,7 @@ export function MonitorPage() {
             { key: 'locks', label: t('monitor.locks') },
             { key: 'slow', label: t('monitor.slow') },
             { key: 'tables', label: t('monitor.tables') },
+            { key: 'advice', label: t('advice.tab') },
           ]}
           active={tab}
           onChange={setTab}
@@ -62,6 +68,7 @@ export function MonitorPage() {
         {tab === 'locks' && <LocksTab connId={connId} />}
         {tab === 'slow' && <SlowTab connId={connId} db={db} />}
         {tab === 'tables' && <TablesTab connId={connId} db={db} />}
+        {tab === 'advice' && <AdviceTab connId={connId} db={db} />}
       </div>
     </>
   )
@@ -436,6 +443,119 @@ function TablesTab({ connId, db }: { connId: string; db: string }) {
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+const SEVERITY_KIND: Record<AdviceSeverity, 'danger' | 'warn' | 'muted'> = {
+  high: 'danger',
+  medium: 'warn',
+  low: 'muted',
+}
+
+/**
+ * Findings, not fixes. Every item states the numbers it was derived from and
+ * hands over the exact statement, because only the operator knows whether the
+ * workload actually wants that index.
+ */
+function AdviceTab({ connId, db }: { connId: string; db: string }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const advice = useAdvice(connId, db)
+  const [filter, setFilter] = useState<AdviceSeverity | 'all'>('all')
+
+  const items = (advice.data?.items ?? []).filter(
+    (item) => filter === 'all' || item.severity === filter,
+  )
+
+  const openInSql = (item: AdviceItem) => {
+    stashSql(item.sql)
+    navigate(`/c/${connId}/sql?db=${encodeURIComponent(db)}`)
+  }
+
+  const copy = (item: AdviceItem) => {
+    navigator.clipboard
+      .writeText(item.sql)
+      .then(() => toast.ok(t('common.copied')))
+      .catch(() => toast.error(t('errors.generic')))
+  }
+
+  return (
+    <div className="grid-wrap" style={{ background: 'var(--surface)' }}>
+      <div className="row" style={{ padding: '6px 12px' }}>
+        {(['all', 'high', 'medium', 'low'] as const).map((level) => (
+          <Button
+            key={level}
+            size="sm"
+            variant={filter === level ? 'primary' : 'ghost'}
+            onClick={() => setFilter(level)}
+          >
+            {level === 'all' ? t('common.all') : t(`advice.sev_${level}`)}
+          </Button>
+        ))}
+        <span className="grow" />
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={RefreshCw}
+          loading={advice.isFetching}
+          onClick={() => void advice.refetch()}
+          aria-label={t('common.refresh')}
+        />
+      </div>
+
+      {advice.data && !advice.data.hasStatistics && (
+        <div className="advice-note">{t('advice.noStatistics')}</div>
+      )}
+
+      {advice.isLoading && (
+        <div className="row" style={{ padding: 24, justifyContent: 'center' }}>
+          <span className="spinner" />
+        </div>
+      )}
+
+      {advice.data && items.length === 0 && (
+        <EmptyState icon={Lightbulb} title={t('advice.empty')} hint={t('advice.emptyHint')} />
+      )}
+
+      <div className="advice-list">
+        {items.map((item) => (
+          <div key={item.id} className="advice-item">
+            <div className="row" style={{ gap: 8 }}>
+              <Badge kind={SEVERITY_KIND[item.severity]}>{t(`advice.sev_${item.severity}`)}</Badge>
+              <span className="advice-title">{t(`advice.kind_${item.kind}`)}</span>
+              <span className="mono truncate grow">
+                {item.schema}.{item.table}
+                {item.columns.length > 0 && item.kind === 'unindexed_foreign_key'
+                  ? ` (${item.columns.join(', ')})`
+                  : ''}
+              </span>
+            </div>
+            <div className="advice-why">{t(`advice.why_${item.kind}`)}</div>
+            <div className="advice-metrics">
+              {item.metrics.map((metric) => (
+                <span key={metric.label} className="advice-metric">
+                  <span className="faint">{metric.label}</span>
+                  <span className="mono">{metric.value}</span>
+                </span>
+              ))}
+            </div>
+            {item.sql && (
+              <div className="advice-sql">
+                <pre className="mono">{item.sql}</pre>
+                <div className="row">
+                  <Button size="sm" icon={Terminal} onClick={() => openInSql(item)}>
+                    {t('advice.openInSql')}
+                  </Button>
+                  <Button size="sm" variant="ghost" icon={ClipboardCopy} onClick={() => copy(item)}>
+                    {t('common.copy')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

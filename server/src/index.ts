@@ -17,9 +17,12 @@ import { DeliveryService } from './modules/delivery/delivery.service.js'
 import { DataService } from './modules/data/data.service.js'
 import { ErdService } from './modules/erd/erd.service.js'
 import { InspectorService } from './modules/inspector/inspector.service.js'
+import { AdviceService } from './modules/monitor/advice.service.js'
 import { MonitorService } from './modules/monitor/monitor.service.js'
 import { PgRolesService } from './modules/pgroles/pgroles.service.js'
+import { SearchService } from './modules/search/search.service.js'
 import { HistoryRepo } from './modules/sql/history.repo.js'
+import { SavedQueryRepo } from './modules/sql/saved.repo.js'
 import { SqlService } from './modules/sql/sql.service.js'
 
 async function main(): Promise<void> {
@@ -57,11 +60,14 @@ async function main(): Promise<void> {
   const inspector = new InspectorService(ctx)
   const data = new DataService(ctx, inspector)
   const history = new HistoryRepo(store)
+  const savedQueries = new SavedQueryRepo(store)
+  const search = new SearchService(ctx)
   const sql = new SqlService(ctx, history)
   const backupRepo = new BackupRepo(store)
   const backups = new BackupService(ctx, backupRepo)
   const scheduler = new BackupScheduler(ctx, backupRepo, backups, (msg) => app.log.warn(msg))
   const monitor = new MonitorService(ctx)
+  const advice = new AdviceService(ctx)
   const pgroles = new PgRolesService(ctx)
   const erd = new ErdService(ctx)
   const delivery = new DeliveryService(ctx, backups)
@@ -75,6 +81,9 @@ async function main(): Promise<void> {
     data,
     sql,
     history,
+    savedQueries,
+    search,
+    advice,
     backups,
     backupRepo,
     scheduler,

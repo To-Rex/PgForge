@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { parse } from '../../core/validate.js'
 import type { AppContext } from '../../context.js'
 import { requireRole } from '../../plugins/auth.js'
+import type { AdviceService } from './advice.service.js'
 import type { MonitorService } from './monitor.service.js'
 
 const pidSchema = z.object({ pid: z.number().int().min(1) })
@@ -14,6 +15,7 @@ export function registerMonitorRoutes(
   app: FastifyInstance,
   ctx: AppContext,
   monitor: MonitorService,
+  advice: AdviceService,
 ): void {
   const actor = (req: FastifyRequest) => ({ id: req.currentUser.id, email: req.currentUser.email })
 
@@ -76,5 +78,10 @@ export function registerMonitorRoutes(
   app.get('/api/connections/:connId/db/:db/slow-queries', async (req) => {
     const { connId, db } = req.params as DbParams
     return monitor.slowQueries(connId, db)
+  })
+
+  app.get('/api/connections/:connId/db/:db/advice', async (req) => {
+    const { connId, db } = req.params as DbParams
+    return advice.advise(connId, db)
   })
 }

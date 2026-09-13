@@ -361,12 +361,17 @@
   padding: 4px;
 }
 
+/* Height is fixed so the virtualized relation lists can window by row count;
+   TREE_ROW_HEIGHT in SchemaTree.tsx must stay in step with it. */
 .tree-node {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 4px 6px;
+  height: 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0 6px;
   border: none;
   background: none;
   border-radius: var(--radius-sm);
@@ -1065,5 +1070,430 @@
 
   .form-grid .span-2 {
     grid-column: span 1;
+  }
+}
+
+/* ── Command palette ─────────────────────────────────────────────────────── */
+.palette-overlay {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.palette {
+  width: min(680px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 70vh;
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.palette-input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.palette-scope {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.palette-scope button {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-data);
+  font-size: 10px;
+  padding: 3px 8px;
+  cursor: pointer;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-scope button.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.palette-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.palette-status {
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.palette-item.active {
+  background: var(--accent-bg);
+}
+
+.palette-label {
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.palette-kind {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+
+.palette-footer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-wrap: wrap;
+}
+
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 8px 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-search:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ── Foreign-key jump inside the data grid ───────────────────────────────── */
+.fk-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.fk-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fk-jump {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  border-radius: 3px;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+  flex-shrink: 0;
+}
+
+/* Revealed on hover/focus so the grid stays quiet when nobody is pointing at it. */
+tr:hover .fk-jump,
+.fk-jump:focus-visible {
+  opacity: 1;
+}
+
+.fk-jump:hover {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* ── Query plan ──────────────────────────────────────────────────────────── */
+.plan-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.plan-summary strong {
+  color: var(--text);
+  font-family: var(--font-data);
+}
+
+.plan-hot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
+
+.plan-hot-label {
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.plan-hot-item {
+  color: var(--text-muted);
+}
+
+.plan-rows {
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.plan-row {
+  position: relative;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The bar sits behind the text: a hairline gauge, not a chart. */
+.plan-bar-track {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.plan-bar {
+  height: 100%;
+  background: var(--accent-bg);
+}
+
+.plan-bar.hot {
+  background: var(--warn-bg);
+}
+
+.plan-row-main {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plan-node {
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.plan-time {
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+.plan-rows-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.plan-rows-count.bad {
+  color: var(--warn);
+}
+
+.plan-loops {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.plan-warnings {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.plan-detail {
+  position: relative;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--text-faint);
+  word-break: break-word;
+}
+
+/* ── SQL side panes (history, saved) ─────────────────────────────────────── */
+.side-pane {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.saved-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding-right: 4px;
+}
+
+.saved-open {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 4px 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.saved-open:hover {
+  background: var(--surface-hover);
+}
+
+/* ── Index advice ────────────────────────────────────────────────────────── */
+.advice-note {
+  padding: 8px 12px;
+  margin: 0 12px 8px;
+  background: var(--warn-bg);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.advice-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.advice-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.advice-title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+}
+
+.advice-why {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.advice-metrics {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.advice-metric {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  font-size: var(--text-xs);
+}
+
+.advice-sql {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+.advice-sql pre {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  .side-pane {
+    width: 220px;
+  }
+
+  .palette {
+    max-height: 80vh;
   }
 }

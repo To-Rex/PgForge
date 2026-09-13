@@ -31,11 +31,15 @@ import { registerErdRoutes } from './modules/erd/erd.routes.js'
 import type { ErdService } from './modules/erd/erd.service.js'
 import { registerInspectorRoutes } from './modules/inspector/inspector.routes.js'
 import type { InspectorService } from './modules/inspector/inspector.service.js'
+import type { AdviceService } from './modules/monitor/advice.service.js'
 import { registerMonitorRoutes } from './modules/monitor/monitor.routes.js'
 import type { MonitorService } from './modules/monitor/monitor.service.js'
 import { registerPgRoleRoutes } from './modules/pgroles/pgroles.routes.js'
 import type { PgRolesService } from './modules/pgroles/pgroles.service.js'
+import { registerSearchRoutes } from './modules/search/search.routes.js'
+import type { SearchService } from './modules/search/search.service.js'
 import type { HistoryRepo } from './modules/sql/history.repo.js'
+import type { SavedQueryRepo } from './modules/sql/saved.repo.js'
 import { registerSqlRoutes } from './modules/sql/sql.routes.js'
 import type { SqlService } from './modules/sql/sql.service.js'
 import { registerSystemRoutes } from './modules/system/system.routes.js'
@@ -50,6 +54,9 @@ export interface Services {
   data: DataService
   sql: SqlService
   history: HistoryRepo
+  savedQueries: SavedQueryRepo
+  search: SearchService
+  advice: AdviceService
   backups: BackupService
   backupRepo: BackupRepo
   scheduler: BackupScheduler
@@ -135,9 +142,10 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
     registerConnectionRoutes(scope, ctx, services.connections)
     registerInspectorRoutes(scope, ctx, services.inspector, services.connections)
     registerDataRoutes(scope, ctx, services.data, services.connections)
-    registerSqlRoutes(scope, ctx, services.sql, services.history)
+    registerSqlRoutes(scope, ctx, services.sql, services.history, services.savedQueries)
+    registerSearchRoutes(scope, services.search)
     registerBackupRoutes(scope, ctx, services.backups, services.backupRepo, services.scheduler, services.connections)
-    registerMonitorRoutes(scope, ctx, services.monitor)
+    registerMonitorRoutes(scope, ctx, services.monitor, services.advice)
     registerPgRoleRoutes(scope, ctx, services.pgroles, services.connections)
     registerErdRoutes(scope, services.erd)
     registerDeliveryRoutes(scope, ctx, services.delivery)

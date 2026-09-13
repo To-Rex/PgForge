@@ -7,6 +7,7 @@ import {
   Menu as MenuIcon,
   Moon,
   Network,
+  Search,
   ScrollText,
   Server,
   Settings,
@@ -15,10 +16,11 @@ import {
   Terminal,
   Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { Button, Select } from '../ui/basics.js'
+import { CommandPalette } from './CommandPalette.js'
 import { logout } from '../../lib/api.js'
 import { useConnection } from '../../lib/queries.js'
 import { LANGUAGES, setLanguage, type LangCode } from '../../i18n/index.js'
@@ -35,9 +37,23 @@ export function AppShell() {
   const connection = useConnection(connId)
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Keep the selected database when moving between workspace pages.
   const currentDb = new URLSearchParams(location.search).get('db')
+
+  // Cmd/Ctrl+K anywhere opens the palette; it is the fastest route to any
+  // object on the server, so it must not depend on where the user happens to be.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const dbSuffix = currentDb ? `?db=${encodeURIComponent(currentDb)}` : ''
 
   const workspaceNav = connId
@@ -72,6 +88,13 @@ export function AppShell() {
           <span className="logo-mark">pg</span>
           pgforge
         </div>
+
+        {/* Discoverability: the shortcut is only useful once you know it exists. */}
+        <button type="button" className="sidebar-search" onClick={() => setPaletteOpen(true)}>
+          <Search size={14} strokeWidth={1.8} />
+          <span className="grow">{t('search.title')}</span>
+          <kbd>⌘K</kbd>
+        </button>
 
         {connection && (
           <nav className="sidebar-section" aria-label={t('nav.workspace')}>
@@ -167,6 +190,13 @@ export function AppShell() {
         />
         <Outlet />
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        connId={connId}
+        db={currentDb ?? connection?.defaultDatabase}
+      />
     </div>
   )
 }

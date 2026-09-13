@@ -146,6 +146,22 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_invitations_email ON invitations(email);
   `,
+  // v5 — named SQL snippets (history records what ran; this keeps what is worth rerunning)
+  `
+  CREATE TABLE saved_queries (
+    id            TEXT PRIMARY KEY,
+    owner_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    description   TEXT,
+    sql           TEXT NOT NULL,
+    connection_id TEXT,
+    shared        INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+  );
+  CREATE INDEX idx_saved_owner ON saved_queries(owner_id, name);
+  CREATE INDEX idx_saved_shared ON saved_queries(shared, name);
+  `,
 ]
 
 export type SqlParams = Record<string, string | number | null>

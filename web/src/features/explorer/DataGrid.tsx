@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   ArrowDown,
   ArrowUp,
+  ArrowUpRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import type {
   ColumnInfo,
   FilterOp,
+  ForeignKeyInfo,
   RowFilter,
   RowsPage,
   RowSort,
@@ -39,23 +41,36 @@ const OPS: FilterOp[] = [
 ]
 const PAGE_SIZE = 100
 
+/** Where a foreign-key click should land: the parent row, already filtered. */
+export interface GridNavigation {
+  schema: string
+  table: string
+  filters: RowFilter[]
+}
+
 export function DataGrid({
   connId,
   db,
   schema,
   table,
+  initialFilters,
+  onNavigate,
 }: {
   connId: string
   db: string
   schema: string
   table: string
+  /** Filters the view opens with — carried in the URL, so the view is linkable. */
+  initialFilters?: RowFilter[]
+  /** Omitted where following a key makes no sense (backup inspection). */
+  onNavigate?: (target: GridNavigation) => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const [page, setPage] = useState(0)
   const [sort, setSort] = useState<RowSort | null>(null)
-  const [filters, setFilters] = useState<RowFilter[]>([])
+  const [filters, setFilters] = useState<RowFilter[]>(initialFilters ?? [])
   const [search, setSearch] = useState('')
   const [searchDraft, setSearchDraft] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -93,6 +108,40 @@ export function DataGrid({
       .map((name) => data.columns.findIndex((c) => c.name === name))
       .filter((i) => i >= 0)
   }, [data])
+
+  // Foreign keys are what turn an opaque id into navigation, so the grid needs
+  // to know which columns point where before it can offer the jump.
+  const structure = useQuery({
+    queryKey: ['structure', connId, db, schema, table],
+    queryFn: () => api<TableStructure>(`${base}/structure`),
+    enabled: onNavigate !== undefined,
+    staleTime: 60_000,
+  })
+
+  const fkByColumn = useMemo(() => {
+    const map = new Map<string, ForeignKeyInfo>()
+    for (const fk of structure.data?.foreignKeys ?? []) {
+      // A column in two keys is rare; the first one wins deterministically.
+      for (const column of fk.columns) if (!map.has(column)) map.set(column, fk)
+    }
+    return map
+  }, [structure.data])
+
+  /** Composite keys carry every column, so the parent row is pinpointed. */
+  const followKey = (fk: ForeignKeyInfo, row: unknown[]) => {
+    if (!data || !onNavigate) return
+    const filters: RowFilter[] = []
+    fk.columns.forEach((column, i) => {
+      const idx = data.columns.findIndex((c) => c.name === column)
+      const refColumn = fk.refColumns[i]
+      if (idx < 0 || !refColumn) return
+      const value = row[idx]
+      if (value === null || value === undefined) return
+      filters.push({ column: refColumn, op: 'eq', value: displayValue(value) })
+    })
+    if (filters.length !== fk.columns.length) return
+    onNavigate({ schema: fk.refSchema, table: fk.refTable, filters })
+  }
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['rows', connId, db, schema, table] })
@@ -374,6 +423,9 @@ export function DataGrid({
                   )}
                   {row.map((value, colIdx) => {
                     const isEditing = editingCell?.row === rowIdx && editingCell.col === colIdx
+                    const column = data.columns[colIdx]
+                    const fk = column ? fkByColumn.get(column.name) : undefined
+                    const canFollow = fk !== undefined && value !== null && value !== undefined
                     return (
                       <td
                         key={colIdx}
@@ -399,6 +451,27 @@ export function DataGrid({
                           />
                         ) : value === null ? (
                           t('explorer.nullValue')
+                        ) : canFollow ? (
+                          <span className="fk-cell">
+                            <span className="fk-value">{displayValue(value)}</span>
+                            <button
+                              type="button"
+                              className="fk-jump"
+                              title={t('explorer.followKey', {
+                                target: `${fk.refSchema}.${fk.refTable}`,
+                              })}
+                              aria-label={t('explorer.followKey', {
+                                target: `${fk.refSchema}.${fk.refTable}`,
+                              })}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                followKey(fk, row)
+                              }}
+                              onDoubleClick={(e) => e.stopPropagation()}
+                            >
+                              <ArrowUpRight size={11} />
+                            </button>
+                          </span>
                         ) : (
                           displayValue(value)
                         )}
