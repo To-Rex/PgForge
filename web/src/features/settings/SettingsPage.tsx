@@ -15,6 +15,7 @@ import { toast } from '../../stores/toast.js'
 import { DangerPanel } from './DangerPanel.js'
 import { DeliveryPanel } from './DeliveryPanel.js'
 import { InvitesPanel } from './InvitesPanel.js'
+import { StoragePanel } from './StoragePanel.js'
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation()
@@ -60,6 +61,7 @@ export function SettingsPage() {
       {user?.role === 'admin' && <UsersPanel />}
       {user?.role === 'admin' && <InvitesPanel />}
       {user?.role === 'admin' && <DeliveryPanel />}
+      {user?.role === 'admin' && <StoragePanel />}
 
       {user?.role === 'admin' && <DangerPanel />}
 

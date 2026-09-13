@@ -42,10 +42,10 @@ import type { HistoryRepo } from './modules/sql/history.repo.js'
 import type { SavedQueryRepo } from './modules/sql/saved.repo.js'
 import { registerSqlRoutes } from './modules/sql/sql.routes.js'
 import type { SqlService } from './modules/sql/sql.service.js'
+import type { MetadataService } from './modules/system/metadata.service.js'
 import { registerSystemRoutes } from './modules/system/system.routes.js'
 
 const execFileAsync = promisify(execFile)
-const APP_VERSION = '1.0.0'
 
 export interface Services {
   auth: AuthService
@@ -65,6 +65,7 @@ export interface Services {
   erd: ErdService
   delivery: DeliveryService
   invitations: InvitationsService
+  metadata: MetadataService
 }
 
 export async function buildApp(ctx: AppContext, services: Services): Promise<FastifyInstance> {
@@ -128,7 +129,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
         .catch(() => null)
     }
     return {
-      version: APP_VERSION,
+      version: ctx.config.version,
       pgToolsAvailable: pgToolsVersion !== null,
       pgToolsVersion,
     }
@@ -150,7 +151,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
     registerErdRoutes(scope, services.erd)
     registerDeliveryRoutes(scope, ctx, services.delivery)
     registerAuditRoutes(scope, ctx)
-    registerSystemRoutes(scope, ctx, services.auth, services.backups, services.scheduler)
+    registerSystemRoutes(scope, ctx, services.auth, services.backups, services.scheduler, services.metadata)
   })
 
   // ── Static web app (production build) ───────────────────────────────────

@@ -20,6 +20,7 @@ Interface languages: 🇺🇿 Uzbek (default) · 🇷🇺 Russian · 🇬🇧 En
 - **ER diagram** — foreign-key graph per schema with draggable tables, pan/zoom.
 - **Platform access control** — admin/editor/viewer roles; viewers get read-only SQL enforced by `READ ONLY` transactions server-side.
 - **Audit log** — every state-changing action recorded with actor, target, connection, details and IP.
+- **Durable platform state** — PgForge's own data normally lives in a SQLite file under `DATA_DIR`. Point `METADATA_URL` at a PostgreSQL database and that file is mirrored there: restored on boot, uploaded after every write. A deploy that replaces the container filesystem no longer resets the platform to first-run. Settings → Application database tests a DSN, seeds it from the running store and writes the setting for you.
 
 ## Architecture
 
@@ -42,10 +43,29 @@ web/      React 18 + Vite SPA
 
 Key decisions:
 
-- **Metadata store** is Node's built-in `node:sqlite` — zero native dependencies, WAL mode, versioned migrations. Application data (users, sessions, connections, history, jobs, backups, schedules, audit) never touches your PostgreSQL servers.
+- **Metadata store** is Node's built-in `node:sqlite` — zero native dependencies, WAL mode, versioned migrations. Application data (users, sessions, connections, history, jobs, backups, schedules, audit) never touches the PostgreSQL servers you manage.
+- **Durability without a rewrite**: with `METADATA_URL` set, that same SQLite image is stored whole in one PostgreSQL row rather than mirrored table-by-table. The application keeps running on SQLite, so schema, migrations and behaviour cannot drift between backends, and the synchronous store API stays synchronous — no repository or the connection resolver had to become async. The trade-offs are stated where they matter: the snapshot is opaque to SQL, exactly one server may write it, and replication is asynchronous (a crash can lose the last second of writes).
 - **Secrets**: one `APP_SECRET`; HKDF derives independent keys for JWT signing and credential encryption. Passwords hashed with scrypt (`timingSafeEqual` verification). Refresh tokens are single-use, rotated, stored hashed.
 - **SQL safety**: identifiers can never be parameterized, so every dynamic identifier passes through one quoting chokepoint; all values are parameterized; filter/sort columns are validated against the live table definition. Read-only enforcement is transactional (`BEGIN READ ONLY`), not just keyword filtering.
 - **Backups are jobs**: spawned tools stream logs into an in-memory ring buffer (polled live by the UI) and persist terminal state; jobs orphaned by a restart are marked failed; server shutdown kills child processes.
+
+## Persistence
+
+`DATA_DIR` holds three things: the SQLite metadata store, the auto-generated `secret.key` (when `APP_SECRET` is unset), and backup artifacts. On a platform that rebuilds the container each deploy, anything not on a persistent volume is lost — which is why a fresh deploy can come back asking for first-run setup.
+
+Two independent fixes, and you want both:
+
+1. **`APP_SECRET`** — set it explicitly in the platform's environment editor. It is the HKDF root for JWT signing *and* for encrypting stored connection passwords, so losing it invalidates sessions and makes saved connection credentials unreadable. It cannot live in the metadata database, because it is the key protecting that database.
+2. **`METADATA_URL`** — a PostgreSQL database, hosted outside the container and separate from the servers you manage, that holds the metadata store. Set it and the platform survives redeploys with no volume at all.
+
+Backup *files* are not covered by `METADATA_URL`; they remain in `DATA_DIR` and still need a mounted volume if you want to keep them.
+
+```bash
+# Settings → Application database can do this for you, but the equivalent is:
+METADATA_URL=postgresql://pgforge:password@db.example.com:5432/pgforge?sslmode=require
+```
+
+The database must exist, or the role must hold `CREATEDB` and the "create the database" option must be enabled — most managed providers grant neither and hand you a ready-made database instead. On boot the stored snapshot is restored before the store opens; any local file it replaces is copied to `pgforge.db.local-<timestamp>.bak` first. If the database is unreachable the server refuses to start rather than silently falling back to ephemeral SQLite.
 
 ## Requirements
 
@@ -90,5 +110,5 @@ Notes for deployment:
 ## Verification
 
 - `npm run typecheck` — strict TS across all workspaces
-- `npm test` — unit tests across both workspaces (118): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting. Pure modules only — no DOM, so the suite stays fast.
+- `npm test` — unit tests across both workspaces (151): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting; plus the metadata snapshot/restore round-trip and the `.env` reader/writer that back the PostgreSQL storage mode. Pure modules only — no DOM, so the suite stays fast.
 - An end-to-end pass against a live PostgreSQL 18 exercised auth, catalog, SQL, data CRUD, ERD, monitoring, roles, audit, and a backup → restore round-trip with data verification.

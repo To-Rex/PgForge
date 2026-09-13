@@ -12,6 +12,10 @@ const envSchema = z.object({
     .min(32, 'must be at least 32 characters — generate one with `openssl rand -base64 48`, or leave it unset to use an auto-generated persisted secret')
     .optional(),
   DATA_DIR: z.string().default('./data'),
+  // When set, PgForge's own store is replicated to (and restored from) this
+  // PostgreSQL database, so the platform survives a redeploy that wipes the
+  // container filesystem. Unset keeps the SQLite-file-only behaviour.
+  METADATA_URL: z.string().trim().min(1).optional(),
   CORS_ORIGINS: z.string().default(''),
   PUBLIC_URL: z.string().url().optional(),
   SQL_DEFAULT_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
@@ -40,12 +44,18 @@ export interface SmtpDefaults {
   to: string
 }
 
+/** Single source of truth for the version reported by /api/meta and snapshots. */
+export const APP_VERSION = '1.0.0'
+
 export interface AppConfig {
   env: 'development' | 'production' | 'test'
+  version: string
   port: number
   host: string
   dataDir: string
   backupDir: string
+  /** PostgreSQL DSN backing the metadata store; null = SQLite file only. */
+  metadataUrl: string | null
   corsOrigins: string[]
   /** Public base URL used in emailed links; derived from the request when unset. */
   publicUrl: string | undefined
@@ -98,10 +108,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     Buffer.from(hkdfSync('sha256', Buffer.from(secret), Buffer.alloc(0), info, 32))
   return {
     env: e.NODE_ENV,
+    version: APP_VERSION,
     port: e.PORT,
     host: e.HOST,
     dataDir,
     backupDir: path.join(dataDir, 'backups'),
+    metadataUrl: e.METADATA_URL ?? null,
     corsOrigins: e.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     publicUrl: e.PUBLIC_URL,
     sql: {

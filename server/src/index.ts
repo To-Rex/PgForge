@@ -1,9 +1,12 @@
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { buildApp } from './app.js'
 import { loadConfig } from './config.js'
 import { makeConnectionResolver, type AppContext } from './context.js'
 import { JobManager } from './infra/jobs.js'
 import { PgPoolManager } from './infra/pg.js'
+import { PostgresMetadataBackend } from './infra/metadata-pg.js'
+import { MetadataSync } from './infra/metadata-sync.js'
 import { MetaStore } from './infra/store.js'
 import { AuditService } from './modules/audit/audit.service.js'
 import { AuthService } from './modules/auth/auth.service.js'
@@ -24,6 +27,7 @@ import { SearchService } from './modules/search/search.service.js'
 import { HistoryRepo } from './modules/sql/history.repo.js'
 import { SavedQueryRepo } from './modules/sql/saved.repo.js'
 import { SqlService } from './modules/sql/sql.service.js'
+import { MetadataService } from './modules/system/metadata.service.js'
 
 async function main(): Promise<void> {
   // Load a .env file when present (server dir or repo root). Variables already
@@ -40,7 +44,34 @@ async function main(): Promise<void> {
   const config = loadConfig()
 
   // Composition root — everything is wired exactly once, here.
-  const store = new MetaStore(path.join(config.dataDir, 'pgforge.db'))
+  const storePath = path.join(config.dataDir, 'pgforge.db')
+
+  // With METADATA_URL set, the durable copy in PostgreSQL is authoritative:
+  // restore it before opening the store, so a container that lost its volume
+  // comes back with the platform intact instead of asking for setup again.
+  let metadataBackend: PostgresMetadataBackend | null = null
+  if (config.metadataUrl) {
+    metadataBackend = new PostgresMetadataBackend(config.metadataUrl)
+    await metadataBackend.init()
+    const snapshot = await metadataBackend.load()
+    if (snapshot) {
+      // Never silently discard a local database: a stale snapshot would
+      // otherwise shadow data written while METADATA_URL was unset.
+      if (existsSync(storePath)) {
+        copyFileSync(storePath, `${storePath}.local-${Date.now()}.bak`)
+      }
+      // A stale write-ahead log would be replayed on top of the restored image.
+      for (const sidecar of ['-wal', '-shm']) {
+        const file = `${storePath}${sidecar}`
+        if (existsSync(file)) rmSync(file, { force: true })
+      }
+      mkdirSync(path.dirname(storePath), { recursive: true })
+      writeFileSync(storePath, snapshot)
+    }
+  }
+
+  let metadataSync: MetadataSync | null = null
+  const store = new MetaStore(storePath, () => metadataSync?.markDirty())
   const connections = new ConnectionsRepo(store)
   const pools = new PgPoolManager(makeConnectionResolver(connections, config.credentialKey))
   const jobs = new JobManager(store)
@@ -72,6 +103,14 @@ async function main(): Promise<void> {
   const erd = new ErdService(ctx)
   const delivery = new DeliveryService(ctx, backups)
   const invitations = new InvitationsService(store)
+  if (metadataBackend) {
+    // The logger is read lazily: `app` is built further down, and nothing here
+    // logs before then.
+    metadataSync = new MetadataSync(store, metadataBackend, config.version, (level, message) =>
+      app.log[level](message),
+    )
+  }
+  const metadata = new MetadataService(ctx, metadataSync)
   backups.setAutoDeliveryHook((backupId) => delivery.autoSend(backupId))
 
   const app = await buildApp(ctx, {
@@ -92,13 +131,22 @@ async function main(): Promise<void> {
     erd,
     delivery,
     invitations,
+    metadata,
   })
+
+  if (config.metadataUrl) {
+    app.log.info(`Metadata store replicated to PostgreSQL (${metadataBackend!.masked})`)
+  }
 
   if (config.secretSource === 'file') {
     app.log.info(
       `APP_SECRET not set — using the auto-generated secret persisted in ${path.join(config.dataDir, 'secret.key')}. Set APP_SECRET explicitly for managed deployments.`,
     )
   }
+
+  // Migrations may have run on top of a restored image; persist that now
+  // rather than waiting for the first user write.
+  if (metadataSync) await metadataSync.flush()
 
   scheduler.start()
 
@@ -110,6 +158,10 @@ async function main(): Promise<void> {
     scheduler.stop()
     ctx.jobs.shutdown()
     await app.close()
+    // Last write wins: flush after the API stops accepting new ones.
+    await metadataSync?.stop().catch((err: unknown) => {
+      app.log.warn(`Final metadata flush failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
     await pools.shutdown()
     store.close()
     process.exit(0)

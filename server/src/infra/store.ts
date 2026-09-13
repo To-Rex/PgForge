@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -173,13 +173,45 @@ export type SqlParams = Record<string, string | number | null>
  */
 export class MetaStore {
   private readonly db: DatabaseSync
+  private readonly onChange: (() => void) | undefined
 
-  constructor(fileName: string) {
+  constructor(
+    private readonly fileName: string,
+    /**
+     * Called after every write. The Postgres backend uses it to schedule a
+     * snapshot; with no backend it is absent and this class behaves exactly as
+     * it always has.
+     */
+    onChange?: () => void,
+  ) {
     if (fileName !== ':memory:') mkdirSync(path.dirname(fileName), { recursive: true })
+    this.onChange = onChange
     this.db = new DatabaseSync(fileName)
     this.db.exec('PRAGMA journal_mode = WAL')
     this.db.exec('PRAGMA foreign_keys = ON')
     this.migrate()
+  }
+
+  /**
+   * The database as bytes, for replication to durable storage.
+   *
+   * Checkpointing folds the write-ahead log back into the main file first, so
+   * the bytes are complete on their own. Both steps are synchronous and Node is
+   * single-threaded, so no write can interleave between them.
+   */
+  snapshot(): Buffer {
+    if (this.fileName === ':memory:') throw new Error('In-memory store cannot be snapshotted')
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    return readFileSync(this.fileName)
+  }
+
+  /** Size on disk, or 0 before the file exists. */
+  byteSize(): number {
+    try {
+      return statSync(this.fileName).size
+    } catch {
+      return 0
+    }
   }
 
   private migrate(): void {
@@ -209,6 +241,7 @@ export class MetaStore {
 
   run(sql: string, params: SqlParams = {}): { changes: number } {
     const result = this.db.prepare(sql).run(params)
+    this.onChange?.()
     return { changes: Number(result.changes) }
   }
 
@@ -230,6 +263,7 @@ export class MetaStore {
       throw err
     }
     this.db.exec('VACUUM')
+    this.onChange?.()
   }
 
   close(): void {

@@ -1497,3 +1497,85 @@ tr:hover .fk-jump,
     max-height: 80vh;
   }
 }
+
+/* ── Application-database settings panel ─────────────────────────────────── */
+.storage-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.storage-current {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.storage-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.storage-note {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.storage-error {
+  padding: 6px 8px;
+  background: var(--danger-bg);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  word-break: break-word;
+}
+
+.storage-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+}
+
+.storage-result {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  word-break: break-word;
+}
+
+.storage-result.ok {
+  background: var(--accent-bg);
+}
+
+.storage-result.bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.storage-envline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 4px 4px 8px;
+}
+
+.storage-envline code {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  overflow-x: auto;
+  white-space: nowrap;
+}

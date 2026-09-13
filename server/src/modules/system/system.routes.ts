@@ -8,12 +8,18 @@ import { bumpTokenGeneration, requireRole } from '../../plugins/auth.js'
 import type { AuthService } from '../auth/auth.service.js'
 import type { BackupService } from '../backup/backup.service.js'
 import type { BackupScheduler } from '../backup/scheduler.js'
+import type { MetadataService } from './metadata.service.js'
 
 const CONFIRM_PHRASE = 'RESET'
 
 const resetSchema = z.object({
   password: z.string().min(1).max(200),
   confirm: z.string(),
+})
+
+const metadataSchema = z.object({
+  url: z.string().trim().min(1).max(2000),
+  createDatabase: z.boolean().optional(),
 })
 
 /**
@@ -28,7 +34,49 @@ export function registerSystemRoutes(
   auth: AuthService,
   backups: BackupService,
   scheduler: BackupScheduler,
+  metadata: MetadataService,
 ): void {
+  // ── Where PgForge keeps its own data ──────────────────────────────────────
+  // Admin-only throughout: the DSN is a credential, and the setting decides
+  // whether the platform survives the next deploy.
+  app.get('/api/system/metadata', { preHandler: requireRole('admin') }, async () => metadata.status())
+
+  app.post(
+    '/api/system/metadata/test',
+    { preHandler: requireRole('admin') },
+    async (req) => {
+      const body = parse(metadataSchema, req.body)
+      return metadata.test(body.url, body.createDatabase ?? false)
+    },
+  )
+
+  app.put('/api/system/metadata', { preHandler: requireRole('admin') }, async (req) => {
+    const body = parse(metadataSchema, req.body)
+    const result = await metadata.save(body.url, body.createDatabase ?? false)
+    ctx.audit.log({
+      actor: { id: req.currentUser.id, email: req.currentUser.email },
+      action: 'system.metadata.configure',
+      target: 'postgres',
+      ip: req.ip,
+    })
+    return result
+  })
+
+  app.delete('/api/system/metadata', { preHandler: requireRole('admin') }, async (req) => {
+    const result = metadata.disable()
+    ctx.audit.log({
+      actor: { id: req.currentUser.id, email: req.currentUser.email },
+      action: 'system.metadata.configure',
+      target: 'sqlite',
+      ip: req.ip,
+    })
+    return result
+  })
+
+  app.post('/api/system/metadata/flush', { preHandler: requireRole('admin') }, async () =>
+    metadata.flush(),
+  )
+
   app.post('/api/system/factory-reset', { preHandler: requireRole('admin') }, async (req, reply) => {
     const body = parse(resetSchema, req.body)
     if (body.confirm !== CONFIRM_PHRASE) {
