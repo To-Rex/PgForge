@@ -192,6 +192,8 @@ export class PostgresMetadataBackend {
       schemaReady: false,
       snapshot: null,
       databaseCreated: false,
+      // Filled in by the caller, which knows how the DSN was assembled.
+      maskedUrl: null,
       error: null,
     }
 
@@ -255,6 +257,7 @@ export class PostgresMetadataBackend {
         schemaReady: true,
         snapshot: rows[0] ? toInfo(rows[0]) : null,
         databaseCreated,
+        maskedUrl: null,
         error: null,
       }
     } catch (err) {

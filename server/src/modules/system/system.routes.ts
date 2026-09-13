@@ -17,10 +17,26 @@ const resetSchema = z.object({
   confirm: z.string(),
 })
 
-const metadataSchema = z.object({
-  url: z.string().trim().min(1).max(2000),
-  createDatabase: z.boolean().optional(),
+const metadataConnectionSchema = z.object({
+  host: z.string().trim().min(1).max(255),
+  port: z.coerce.number().int().min(1).max(65535),
+  database: z.string().trim().min(1).max(128),
+  username: z.string().trim().max(128),
+  password: z.string().max(512),
+  sslMode: z.enum(['disable', 'require', 'verify-ca', 'verify-full']),
 })
+
+// Fields are what the settings form sends; a raw DSN stays valid for scripted
+// setups that already have one.
+const metadataSchema = z
+  .object({
+    connection: metadataConnectionSchema.optional(),
+    url: z.string().trim().min(1).max(2000).optional(),
+    createDatabase: z.boolean().optional(),
+  })
+  .refine((body) => body.connection !== undefined || body.url !== undefined, {
+    message: 'Provide either connection fields or a connection string',
+  })
 
 /**
  * Factory reset — returns the platform to its first-run state. Requires the
@@ -46,13 +62,13 @@ export function registerSystemRoutes(
     { preHandler: requireRole('admin') },
     async (req) => {
       const body = parse(metadataSchema, req.body)
-      return metadata.test(body.url, body.createDatabase ?? false)
+      return metadata.test(body, body.createDatabase ?? false)
     },
   )
 
   app.put('/api/system/metadata', { preHandler: requireRole('admin') }, async (req) => {
     const body = parse(metadataSchema, req.body)
-    const result = await metadata.save(body.url, body.createDatabase ?? false)
+    const result = await metadata.save(body, body.createDatabase ?? false)
     ctx.audit.log({
       actor: { id: req.currentUser.id, email: req.currentUser.email },
       action: 'system.metadata.configure',

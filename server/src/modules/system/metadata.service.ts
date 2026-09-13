@@ -1,8 +1,10 @@
 import type {
+  MetadataConnectionInput,
   MetadataSaveResult,
   MetadataStatus,
   MetadataTestResult,
 } from '@pgforge/shared'
+import { buildMetadataDsn, parseMetadataDsn } from '../../core/dsn.js'
 import { BadRequestError } from '../../core/errors.js'
 import {
   envLine,
@@ -36,6 +38,17 @@ export class MetadataService {
     return resolveEnvFile()
   }
 
+  /**
+   * The UI sends fields; scripted callers may still send a DSN. Building it
+   * here keeps percent-encoding in exactly one place.
+   */
+  private resolve(request: { connection?: MetadataConnectionInput; url?: string }): string {
+    if (request.connection) return buildMetadataDsn(request.connection)
+    const url = request.url?.trim()
+    if (!url) throw new BadRequestError('Provide connection details for the metadata database')
+    return url
+  }
+
   status(): MetadataStatus {
     const envPath = this.envFile()
     const fromFile = readEnvVar(envPath, ENV_KEY)
@@ -46,6 +59,7 @@ export class MetadataService {
       mode: active ? 'postgres' : 'sqlite',
       source: active === null ? 'default' : fromFile === active ? 'env-file' : 'env',
       maskedUrl: active ? maskDatabaseUrl(active) : null,
+      connection: active ? parseMetadataDsn(active) : null,
       snapshot: syncStatus?.snapshot ?? null,
       lastSyncedAt: syncStatus?.lastSyncedAt ?? null,
       lastError: syncStatus?.lastError ?? null,
@@ -58,8 +72,15 @@ export class MetadataService {
     }
   }
 
-  test(url: string, createDatabase: boolean): Promise<MetadataTestResult> {
-    return PostgresMetadataBackend.test(url.trim(), createDatabase)
+  async test(
+    request: { connection?: MetadataConnectionInput; url?: string },
+    createDatabase: boolean,
+  ): Promise<MetadataTestResult> {
+    const url = this.resolve(request)
+    const result = await PostgresMetadataBackend.test(url, createDatabase)
+    // Show exactly what would be saved, so a mistyped field is visible before
+    // it is committed — never the password itself.
+    return { ...result, maskedUrl: maskDatabaseUrl(url) }
   }
 
   /**
@@ -70,8 +91,11 @@ export class MetadataService {
    * A target that already holds a snapshot is left untouched — it belongs to
    * another deployment, and overwriting it from here would be destructive.
    */
-  async save(url: string, createDatabase: boolean): Promise<MetadataSaveResult> {
-    const trimmed = url.trim()
+  async save(
+    request: { connection?: MetadataConnectionInput; url?: string },
+    createDatabase: boolean,
+  ): Promise<MetadataSaveResult> {
+    const trimmed = this.resolve(request)
     const result = await PostgresMetadataBackend.test(trimmed, createDatabase)
     if (!result.ok) {
       throw new BadRequestError(result.error ?? 'Could not connect to the metadata database')

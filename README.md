@@ -20,7 +20,7 @@ Interface languages: 🇺🇿 Uzbek (default) · 🇷🇺 Russian · 🇬🇧 En
 - **ER diagram** — foreign-key graph per schema with draggable tables, pan/zoom.
 - **Platform access control** — admin/editor/viewer roles; viewers get read-only SQL enforced by `READ ONLY` transactions server-side.
 - **Audit log** — every state-changing action recorded with actor, target, connection, details and IP.
-- **Durable platform state** — PgForge's own data normally lives in a SQLite file under `DATA_DIR`. Point `METADATA_URL` at a PostgreSQL database and that file is mirrored there: restored on boot, uploaded after every write. A deploy that replaces the container filesystem no longer resets the platform to first-run. Settings → Application database tests a DSN, seeds it from the running store and writes the setting for you.
+- **Durable platform state** — PgForge's own data normally lives in a SQLite file under `DATA_DIR`. Point `METADATA_URL` at a PostgreSQL database and that file is mirrored there: restored on boot, uploaded after every write. A deploy that replaces the container filesystem no longer resets the platform to first-run. Settings → Application database takes host, port, database, user, password and SSL mode as fields, assembles the connection string server-side, tests it, seeds it from the running store and writes the setting for you.
 
 ## Architecture
 
@@ -60,8 +60,9 @@ Two independent fixes, and you want both:
 
 Backup *files* are not covered by `METADATA_URL`; they remain in `DATA_DIR` and still need a mounted volume if you want to keep them.
 
+Settings → Application database is the intended route: fill in host, port, database, user, password and SSL mode, press Test, then Save. The server assembles and percent-encodes the DSN, so a password containing `@`, `:` or `/` needs no special handling. The equivalent environment variable is:
+
 ```bash
-# Settings → Application database can do this for you, but the equivalent is:
 METADATA_URL=postgresql://pgforge:password@db.example.com:5432/pgforge?sslmode=require
 ```
 
@@ -110,5 +111,5 @@ Notes for deployment:
 ## Verification
 
 - `npm run typecheck` — strict TS across all workspaces
-- `npm test` — unit tests across both workspaces (151): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting; plus the metadata snapshot/restore round-trip and the `.env` reader/writer that back the PostgreSQL storage mode. Pure modules only — no DOM, so the suite stays fast.
+- `npm test` — unit tests across both workspaces (170): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting; plus the metadata snapshot/restore round-trip, DSN assembly/parsing (escaping, IPv6, defaults) and the `.env` reader/writer that back the PostgreSQL storage mode. Pure modules only — no DOM, so the suite stays fast.
 - An end-to-end pass against a live PostgreSQL 18 exercised auth, catalog, SQL, data CRUD, ERD, monitoring, roles, audit, and a backup → restore round-trip with data verification.

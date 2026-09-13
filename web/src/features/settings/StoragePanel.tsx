@@ -1,24 +1,45 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ClipboardCopy, Database, HardDrive, RefreshCw, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { MetadataSaveResult, MetadataStatus, MetadataTestResult } from '@pgforge/shared'
-import { Badge, Button, Checkbox, Field, TextInput } from '../../components/ui/basics.js'
+import type {
+  MetadataConnectionInput,
+  MetadataSaveResult,
+  MetadataStatus,
+  MetadataTestResult,
+  SslMode,
+} from '@pgforge/shared'
+import { Badge, Button, Checkbox, Field, Select, TextInput } from '../../components/ui/basics.js'
 import { ConfirmDialog } from '../../components/ui/overlays.js'
 import { api, ApiError } from '../../lib/api.js'
 import { formatBytes, formatDate } from '../../lib/format.js'
 import { toast } from '../../stores/toast.js'
 
+const SSL_MODES: SslMode[] = ['disable', 'require', 'verify-ca', 'verify-full']
+
+const EMPTY_FORM: MetadataConnectionInput = {
+  host: '',
+  port: 5432,
+  database: 'pgforge',
+  username: '',
+  password: '',
+  sslMode: 'require',
+}
+
 /**
- * Where PgForge keeps its own data. The panel is deliberately explicit about
- * two things operators get wrong: the setting only applies after a restart,
- * and writing it into `.env` is durable only where that file itself survives
- * the deploy — otherwise the platform's own environment editor is the place.
+ * Where PgForge keeps its own data. Details are entered field by field and the
+ * server assembles the connection string, so a password full of punctuation is
+ * not the operator's problem.
+ *
+ * The panel is deliberately explicit about two things people get wrong: the
+ * setting only applies after a restart, and writing it into `.env` is durable
+ * only where that file itself survives the deploy.
  */
 export function StoragePanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [url, setUrl] = useState('')
+  const [form, setForm] = useState<MetadataConnectionInput>(EMPTY_FORM)
+  const [prefilled, setPrefilled] = useState(false)
   const [createDatabase, setCreateDatabase] = useState(false)
   const [test, setTest] = useState<MetadataTestResult | null>(null)
   const [saved, setSaved] = useState<MetadataSaveResult | null>(null)
@@ -29,11 +50,30 @@ export function StoragePanel() {
     queryFn: () => api<MetadataStatus>('/api/system/metadata'),
   })
 
+  // Prefill once from the active setting, so editing one field does not mean
+  // retyping the rest. The password is never returned and stays blank.
+  useEffect(() => {
+    const current = status.data?.connection
+    if (!current || prefilled) return
+    setForm({ ...current, password: '' })
+    setPrefilled(true)
+  }, [status.data, prefilled])
+
+  const set = <K extends keyof MetadataConnectionInput>(
+    key: K,
+    value: MetadataConnectionInput[K],
+  ) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    setTest(null)
+    setSaved(null)
+  }
+
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['metadata-status'] })
+  const body = () => ({ connection: form, createDatabase })
+  const complete = form.host.trim().length > 0 && form.database.trim().length > 0
 
   const runTest = useMutation({
-    mutationFn: () =>
-      api<MetadataTestResult>('/api/system/metadata/test', { body: { url, createDatabase } }),
+    mutationFn: () => api<MetadataTestResult>('/api/system/metadata/test', { body: body() }),
     onSuccess: (result) => {
       setTest(result)
       if (result.ok) toast.ok(t('storage.testOk'))
@@ -44,10 +84,7 @@ export function StoragePanel() {
 
   const save = useMutation({
     mutationFn: () =>
-      api<MetadataSaveResult>('/api/system/metadata', {
-        method: 'PUT',
-        body: { url, createDatabase },
-      }),
+      api<MetadataSaveResult>('/api/system/metadata', { method: 'PUT', body: body() }),
     onSuccess: (result) => {
       setSaved(result)
       refresh()
@@ -120,8 +157,12 @@ export function StoragePanel() {
             </div>
 
             <div className="storage-facts">
-              {isPostgres && s.maskedUrl && (
-                <Fact label={t('storage.target')} value={s.maskedUrl} mono />
+              {isPostgres && s.connection && (
+                <Fact
+                  label={t('storage.target')}
+                  value={`${s.connection.username}@${s.connection.host}:${s.connection.port}/${s.connection.database}`}
+                  mono
+                />
               )}
               <Fact label={t('storage.localSize')} value={formatBytes(s.localBytes)} mono />
               {isPostgres && (
@@ -147,9 +188,7 @@ export function StoragePanel() {
             {s.lastError && <div className="storage-error">{s.lastError}</div>}
 
             {/* Backup artifacts are files, not rows — the snapshot cannot carry them. */}
-            <div className="storage-note">
-              {t('storage.backupsNote', { dir: s.backupDir })}
-            </div>
+            <div className="storage-note">{t('storage.backupsNote', { dir: s.backupDir })}</div>
 
             {isPostgres && (
               <div className="row">
@@ -170,30 +209,74 @@ export function StoragePanel() {
         )}
 
         <div className="storage-form">
-          <Field
-            label={t('storage.connectionString')}
-            hint={t('storage.connectionStringHint')}
-          >
-            <TextInput
-              mono
-              value={url}
-              placeholder="postgresql://user:password@host:5432/pgforge?sslmode=require"
-              onChange={(e) => {
-                setUrl(e.target.value)
-                setTest(null)
-                setSaved(null)
-              }}
-            />
-          </Field>
+          <div className="form-grid">
+            <Field label={t('conn.host')}>
+              <TextInput
+                mono
+                value={form.host}
+                placeholder="db.example.com"
+                onChange={(e) => set('host', e.target.value)}
+              />
+            </Field>
+            <Field label={t('conn.port')}>
+              <TextInput
+                mono
+                type="number"
+                min={1}
+                max={65535}
+                value={form.port}
+                onChange={(e) => set('port', Number(e.target.value))}
+              />
+            </Field>
+            <Field label={t('storage.database')} hint={t('storage.databaseHint')}>
+              <TextInput
+                mono
+                value={form.database}
+                onChange={(e) => set('database', e.target.value)}
+              />
+            </Field>
+            <Field label={t('conn.sslMode')}>
+              <Select
+                value={form.sslMode}
+                onChange={(e) => set('sslMode', e.target.value as SslMode)}
+              >
+                {SSL_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('conn.username')}>
+              <TextInput
+                mono
+                value={form.username}
+                onChange={(e) => set('username', e.target.value)}
+              />
+            </Field>
+            <Field
+              label={t('conn.password')}
+              hint={prefilled ? t('storage.passwordRetype') : undefined}
+            >
+              <TextInput
+                type="password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+              />
+            </Field>
+          </div>
+
           <Checkbox
             label={t('storage.createDatabase')}
             checked={createDatabase}
             onChange={setCreateDatabase}
           />
+
           <div className="row">
             <Button
               size="sm"
-              disabled={!url.trim()}
+              disabled={!complete}
               loading={runTest.isPending}
               onClick={() => runTest.mutate()}
             >
@@ -219,6 +302,8 @@ export function StoragePanel() {
                     {test.databaseCreated ? ` · ${t('storage.databaseCreated')}` : ''}
                   </div>
                   <div className="mono faint">{test.serverVersion}</div>
+                  {/* Assembled by the server: what you see is what gets saved. */}
+                  {test.maskedUrl && <div className="mono faint">{test.maskedUrl}</div>}
                   <div>
                     {test.snapshot
                       ? t('storage.willAdopt', {

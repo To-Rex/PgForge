@@ -1,3 +1,22 @@
+import type { SslMode } from './connections.js'
+
+/**
+ * Connection details for the metadata database, entered field by field.
+ * The server assembles the DSN from these, so escaping a password full of
+ * punctuation is never the operator's problem.
+ */
+export interface MetadataConnectionInput {
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+  sslMode: SslMode
+}
+
+/** Everything except the password — safe to return from the API. */
+export type MetadataConnectionParts = Omit<MetadataConnectionInput, 'password'>
+
 /**
  * Where PgForge keeps its own data (users, connections, history, audit …).
  *
@@ -23,6 +42,8 @@ export interface MetadataStatus {
   source: MetadataSource
   /** Password replaced with `***`; the raw DSN is never returned. */
   maskedUrl: string | null
+  /** Current settings split into fields, so the form can prefill itself. */
+  connection: MetadataConnectionParts | null
   snapshot: MetadataSnapshotInfo | null
   lastSyncedAt: string | null
   /** Last replication failure, if the most recent flush did not succeed. */
@@ -39,7 +60,10 @@ export interface MetadataStatus {
 }
 
 export interface MetadataTestRequest {
-  url: string
+  /** Preferred form: the server builds the DSN from these fields. */
+  connection?: MetadataConnectionInput
+  /** Still accepted for scripted setups that already hold a DSN. */
+  url?: string
   /** Attempt `CREATE DATABASE` when the target database does not exist. */
   createDatabase?: boolean
 }
@@ -54,6 +78,8 @@ export interface MetadataTestResult {
   snapshot: MetadataSnapshotInfo | null
   /** Set when the database was created by this call. */
   databaseCreated: boolean
+  /** Exactly what would be saved, with the password masked. */
+  maskedUrl: string | null
   error: string | null
 }
 
