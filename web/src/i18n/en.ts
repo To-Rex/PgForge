@@ -112,6 +112,7 @@ export const en = {
     totalSize: 'Total size',
     activeConnections: 'Active connections',
     superuser: 'Superuser',
+    credentialsUnreadable: 'password needs re-entering',
   },
   db: {
     databases: 'Databases',
@@ -612,6 +613,11 @@ export const en = {
     envWritten: 'Written to {{count}} file(s): {{paths}}',
     envNotWritten: 'The .env file is not writable here, so nothing was written to it.',
     platformEnvHint: 'If you deploy with Docker/Dokploy, the .env inside the container is lost on the next build — add this line to the platform environment editor instead.',
+    secretTitle: 'APP_SECRET is not pinned',
+    secretWarning: 'Connections are stored encrypted, and the key is derived from APP_SECRET. Yours was generated automatically and lives in DATA_DIR, which a redeploy wipes — so connections would come back with unreadable passwords. Copy the current secret into your platform environment now; a new one would not open the existing passwords.',
+    secretFile: 'Currently stored in {{path}}',
+    secretReveal: 'Show the secret',
+    secretRevealedHint: 'Add this to the platform environment editor, then redeploy. Keep it out of version control.',
   },
   errors: {
     network: 'Network error. Check that the server is running.',

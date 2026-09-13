@@ -10,6 +10,11 @@ export interface ConnectionSummary {
   sslMode: SslMode
   color: string | null
   readOnly: boolean
+  /**
+   * False when the stored password cannot be decrypted with the current
+   * APP_SECRET — the connection is intact, but its password must be re-entered.
+   */
+  credentialsReadable: boolean
   createdAt: string
   updatedAt: string
   lastUsedAt: string | null

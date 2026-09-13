@@ -1,5 +1,6 @@
 import type { ConnectionSummary, SslMode } from '@pgforge/shared'
 import { nowIso } from '../../core/util.js'
+import { decryptSecret } from '../../core/crypto.js'
 import type { MetaStore } from '../../infra/store.js'
 
 export interface ConnectionRecord {
@@ -50,7 +51,12 @@ const toRecord = (r: Row): ConnectionRecord => ({
   lastUsedAt: r.last_used_at,
 })
 
-export const toSummary = (c: ConnectionRecord): ConnectionSummary => ({
+/**
+ * `credentialKey` is optional so callers that only need the shape (tests,
+ * internal mapping) are not forced to hold the key. Without it a connection is
+ * reported as readable, which matches the old behaviour exactly.
+ */
+export const toSummary = (c: ConnectionRecord, credentialKey?: Buffer): ConnectionSummary => ({
   id: c.id,
   name: c.name,
   host: c.host,
@@ -60,10 +66,21 @@ export const toSummary = (c: ConnectionRecord): ConnectionSummary => ({
   sslMode: c.sslMode,
   color: c.color,
   readOnly: c.readOnly,
+  credentialsReadable: credentialKey ? canDecrypt(c.passwordEnc, credentialKey) : true,
   createdAt: c.createdAt,
   updatedAt: c.updatedAt,
   lastUsedAt: c.lastUsedAt,
 })
+
+/** A stored password survives a redeploy; the key that opens it may not. */
+function canDecrypt(payload: string, key: Buffer): boolean {
+  try {
+    decryptSecret(payload, key)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export class ConnectionsRepo {
   constructor(private readonly store: MetaStore) {}

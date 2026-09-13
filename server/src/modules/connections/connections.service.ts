@@ -18,12 +18,14 @@ export class ConnectionsService {
   constructor(private readonly ctx: AppContext) {}
 
   list(): ConnectionSummary[] {
-    return this.ctx.connections.list().map(toSummary)
+    // The key is passed so each entry can say whether its password still opens
+    // — the difference between "connection lost" and "re-enter the password".
+    return this.ctx.connections.list().map((c) => toSummary(c, this.ctx.config.credentialKey))
   }
 
   get(id: string): ConnectionSummary {
     const record = this.requireRecord(id)
-    return toSummary(record)
+    return toSummary(record, this.ctx.config.credentialKey)
   }
 
   create(input: ConnectionInput): ConnectionSummary {

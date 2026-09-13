@@ -82,6 +82,11 @@ export function HomePage() {
               <span className="conn-dot" style={{ background: conn.color ?? 'var(--accent)' }} />
               <span className="conn-name">{conn.name}</span>
               {conn.readOnly && <Badge kind="warn">{t('conn.readOnly')}</Badge>}
+              {/* The row survived, its password did not: say which, rather than
+                  failing with a cryptic error on first use. */}
+              {!conn.credentialsReadable && (
+                <Badge kind="danger">{t('conn.credentialsUnreadable')}</Badge>
+              )}
               {isAdmin && (
                 <Button
                   variant="ghost"

@@ -69,6 +69,14 @@ export interface AppConfig {
   credentialKey: Buffer
   /** Where the master secret came from. 'file' = auto-persisted in DATA_DIR. */
   secretSource: 'env' | 'file'
+  /** Absolute path of the persisted secret; null when APP_SECRET is set. */
+  secretFile: string | null
+  /**
+   * The master secret itself. Needed so an administrator can pin an
+   * auto-generated one into the platform environment before a redeploy makes
+   * every stored connection password unreadable.
+   */
+  masterSecret: string
   /** Default email delivery config from SMTP_* env vars; null when unset. */
   smtp: SmtpDefaults | null
 }
@@ -88,8 +96,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // generated secret is persisted next to the metadata store instead.
   let secret = e.APP_SECRET
   let secretSource: 'env' | 'file' = 'env'
+  let secretFilePath: string | null = null
   if (!secret) {
     const secretFile = path.join(dataDir, 'secret.key')
+    secretFilePath = secretFile
     secretSource = 'file'
     try {
       const existing = readFileSync(secretFile, 'utf8').trim()
@@ -126,6 +136,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     jwtSecret: derive('pgforge/jwt').toString('hex'),
     credentialKey: derive('pgforge/credentials'),
     secretSource,
+    secretFile: secretFilePath,
+    masterSecret: secret,
     smtp: e.SMTP_HOST
       ? {
           host: e.SMTP_HOST,

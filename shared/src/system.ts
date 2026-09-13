@@ -63,6 +63,24 @@ export interface MetadataStatus {
   restartRequired: boolean
   /** Backup artifacts still live on disk — the snapshot covers metadata only. */
   backupDir: string
+  /**
+   * The snapshot holds encrypted connection passwords, never the key that
+   * opens them. An auto-generated secret lives in DATA_DIR, so a redeploy that
+   * wipes DATA_DIR restores every connection unusable.
+   */
+  secret: {
+    source: 'env' | 'file'
+    /** Where the generated secret is persisted; null when APP_SECRET is set. */
+    file: string | null
+    /** True when a PostgreSQL store is configured but the secret is not pinned. */
+    atRisk: boolean
+  }
+}
+
+export interface AppSecretRevealResult {
+  /** The live master secret, so it can be pinned in the platform environment. */
+  secret: string
+  envLine: string
 }
 
 export interface MetadataTestRequest {

@@ -55,7 +55,11 @@ Key decisions:
 
 Two independent fixes, and you want both:
 
-1. **`APP_SECRET`** — set it explicitly in the platform's environment editor. It is the HKDF root for JWT signing *and* for encrypting stored connection passwords, so losing it invalidates sessions and makes saved connection credentials unreadable. It cannot live in the metadata database, because it is the key protecting that database.
+1. **`APP_SECRET`** — set it explicitly in the platform's environment editor. It is the HKDF root for JWT signing *and* for encrypting stored connection passwords. It cannot live in the metadata database, because it is the key protecting the contents of that database.
+
+   This is the part that surprises people. `METADATA_URL` alone is not enough: after a redeploy every registered connection comes back — name, host, port, user, all intact — but its **password** was encrypted with a key derived from `APP_SECRET`, and an auto-generated secret lives in `DATA_DIR` and does not survive. The connections look lost; they are not, they are locked. PgForge says so directly: such connections are badged *password needs re-entering* in the list, and the server logs a warning at boot when `METADATA_URL` is set without `APP_SECRET`.
+
+   Before your first redeploy, pin the current secret rather than inventing a new one — a new secret cannot open the existing passwords. Settings → Application database will show the live secret (administrator password required, and the reveal is audited) so you can paste it into the platform environment.
 2. **`METADATA_URL`** — a PostgreSQL database, hosted outside the container and separate from the servers you manage, that holds the metadata store. Set it and the platform survives redeploys with no volume at all.
 
 Backup *files* are not covered by `METADATA_URL`; they remain in `DATA_DIR` and still need a mounted volume if you want to keep them.
@@ -111,5 +115,5 @@ Notes for deployment:
 ## Verification
 
 - `npm run typecheck` — strict TS across all workspaces
-- `npm test` — unit tests across both workspaces (176): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting; plus the metadata snapshot/restore round-trip, DSN assembly/parsing (escaping, IPv6, defaults) and the `.env` discovery/reader/writer that back the PostgreSQL storage mode. Pure modules only — no DOM, so the suite stays fast.
+- `npm test` — unit tests across both workspaces (183): server-side crypto, the SQL script lexer, the filter builder, CSV parsing and Telegram delivery; web-side URL filter codec, SQL read/write classification, `EXPLAIN` plan parsing, cron building and formatting; plus the metadata snapshot/restore round-trip, DSN assembly/parsing (escaping, IPv6, defaults) the `.env` discovery/reader/writer, and a connection round-trip through snapshot/restore that pins down both the success case and the changed-APP_SECRET failure. Pure modules only — no DOM, so the suite stays fast.
 - An end-to-end pass against a live PostgreSQL 18 exercised auth, catalog, SQL, data CRUD, ERD, monitoring, roles, audit, and a backup → restore round-trip with data verification.

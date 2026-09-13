@@ -17,6 +17,8 @@ const resetSchema = z.object({
   confirm: z.string(),
 })
 
+const revealSchema = z.object({ password: z.string().min(1).max(200) })
+
 const metadataConnectionSchema = z.object({
   host: z.string().trim().min(1).max(255),
   port: z.coerce.number().int().min(1).max(65535),
@@ -92,6 +94,34 @@ export function registerSystemRoutes(
   app.post('/api/system/metadata/flush', { preHandler: requireRole('admin') }, async () =>
     metadata.flush(),
   )
+
+  /**
+   * Reveals the master secret so an administrator can pin an auto-generated one
+   * into the platform environment.
+   *
+   * Without this the operator is stuck: the snapshot restores every connection,
+   * but the key that decrypts their passwords lived in DATA_DIR and is gone.
+   * Setting a *new* APP_SECRET would not help — it has to be this one.
+   *
+   * Guarded like the factory reset: admin, plus their own password, and audited.
+   */
+  app.post('/api/system/app-secret/reveal', { preHandler: requireRole('admin') }, async (req) => {
+    const body = parse(revealSchema, req.body)
+    const actor = auth.users.byId(req.currentUser.id)
+    if (!actor || !verifyPassword(body.password, actor.passwordHash)) {
+      throw new UnauthorizedError('Password is incorrect')
+    }
+    ctx.audit.log({
+      actor: { id: actor.id, email: actor.email },
+      action: 'system.app_secret.reveal',
+      ip: req.ip,
+    })
+    req.log.warn({ by: actor.email, ip: req.ip }, 'APP_SECRET revealed to an administrator')
+    return {
+      secret: ctx.config.masterSecret,
+      envLine: `APP_SECRET=${ctx.config.masterSecret}`,
+    }
+  })
 
   app.post('/api/system/factory-reset', { preHandler: requireRole('admin') }, async (req, reply) => {
     const body = parse(resetSchema, req.body)

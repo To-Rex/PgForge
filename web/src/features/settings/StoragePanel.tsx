@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ClipboardCopy, Database, HardDrive, RefreshCw, Upload } from 'lucide-react'
+import { AlertTriangle, ClipboardCopy, Database, Eye, HardDrive, KeyRound, RefreshCw, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
+  AppSecretRevealResult,
   MetadataConnectionInput,
   MetadataSaveResult,
   MetadataStatus,
@@ -44,6 +45,8 @@ export function StoragePanel() {
   const [test, setTest] = useState<MetadataTestResult | null>(null)
   const [saved, setSaved] = useState<MetadataSaveResult | null>(null)
   const [reverting, setReverting] = useState(false)
+  const [revealPassword, setRevealPassword] = useState('')
+  const [revealed, setRevealed] = useState<AppSecretRevealResult | null>(null)
 
   const status = useQuery({
     queryKey: ['metadata-status'],
@@ -109,6 +112,18 @@ export function StoragePanel() {
     onSuccess: () => {
       refresh()
       toast.ok(t('storage.flushed'))
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
+  })
+
+  const reveal = useMutation({
+    mutationFn: () =>
+      api<AppSecretRevealResult>('/api/system/app-secret/reveal', {
+        body: { password: revealPassword },
+      }),
+    onSuccess: (result) => {
+      setRevealed(result)
+      setRevealPassword('')
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : t('errors.generic')),
   })
@@ -202,6 +217,54 @@ export function StoragePanel() {
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setReverting(true)}>
                   {t('storage.revertToSqlite')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {s?.secret.atRisk && (
+          <div className="storage-secret">
+            <div className="row" style={{ gap: 8 }}>
+              <KeyRound size={15} />
+              <strong>{t('storage.secretTitle')}</strong>
+            </div>
+            <div>{t('storage.secretWarning')}</div>
+            {s.secret.file && (
+              <div className="mono faint">{t('storage.secretFile', { path: s.secret.file })}</div>
+            )}
+            {revealed ? (
+              <>
+                <div className="storage-envline">
+                  <code className="mono">{revealed.envLine}</code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={ClipboardCopy}
+                    onClick={() => copy(revealed.envLine)}
+                    aria-label={t('common.copy')}
+                  />
+                </div>
+                <div className="muted">{t('storage.secretRevealedHint')}</div>
+              </>
+            ) : (
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <TextInput
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder={t('auth.password')}
+                  value={revealPassword}
+                  onChange={(e) => setRevealPassword(e.target.value)}
+                  style={{ width: 200 }}
+                />
+                <Button
+                  size="sm"
+                  icon={Eye}
+                  disabled={revealPassword.length === 0}
+                  loading={reveal.isPending}
+                  onClick={() => reveal.mutate()}
+                >
+                  {t('storage.secretReveal')}
                 </Button>
               </div>
             )}

@@ -114,6 +114,7 @@ export const uz: Catalog = {
     totalSize: 'Umumiy hajm',
     activeConnections: 'Faol ulanishlar',
     superuser: 'Superfoydalanuvchi',
+    credentialsUnreadable: 'parol qayta kiritilishi kerak',
   },
   db: {
     databases: "Ma'lumotlar bazalari",
@@ -614,6 +615,11 @@ export const uz: Catalog = {
     envWritten: '{{count}} ta faylga yozildi: {{paths}}',
     envNotWritten: "Bu yerda .env fayliga yozib bo'lmadi, shuning uchun hech narsa yozilmadi.",
     platformEnvHint: "Docker/Dokploy bilan deploy qilsangiz, konteyner ichidagi .env keyingi buildda yo'qoladi — bu qatorni platformaning muhit o'zgaruvchilari bo'limiga qo'shing.",
+    secretTitle: "APP_SECRET qat'iy o'rnatilmagan",
+    secretWarning: "Ulanishlar shifrlangan holda saqlanadi, kalit esa APP_SECRET dan chiqariladi. Sizniki avtomatik yaratilgan va DATA_DIR ichida yotibdi, uni deploy o'chiradi — ya'ni ulanishlar qaytadi, lekin parollari ochilmaydi. Hozirgi kalitni platforma muhitiga ko'chirib qo'ying; yangisi mavjud parollarni ocha olmaydi.",
+    secretFile: 'Hozir {{path}} da saqlanmoqda',
+    secretReveal: "Kalitni ko'rsatish",
+    secretRevealedHint: "Buni platformaning muhit o'zgaruvchilariga qo'shing va qayta deploy qiling. Git'ga qo'ymang.",
   },
   errors: {
     network: 'Tarmoq xatosi. Server ishlayotganini tekshiring.',

@@ -138,6 +138,14 @@ async function main(): Promise<void> {
     app.log.info(`Metadata store replicated to PostgreSQL (${metadataBackend!.masked})`)
   }
 
+  if (config.metadataUrl && config.secretSource === 'file') {
+    app.log.warn(
+      'METADATA_URL is set but APP_SECRET is not: the metadata store will survive a redeploy, ' +
+        'but the key that decrypts stored connection passwords lives in DATA_DIR and will not. ' +
+        'Pin the current secret via Settings -> Application database before redeploying.',
+    )
+  }
+
   if (config.secretSource === 'file') {
     app.log.info(
       `APP_SECRET not set — using the auto-generated secret persisted in ${path.join(config.dataDir, 'secret.key')}. Set APP_SECRET explicitly for managed deployments.`,

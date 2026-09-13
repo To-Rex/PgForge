@@ -93,6 +93,14 @@ export class MetadataService {
       // Normalise both sides: absent and empty mean the same thing here.
       restartRequired: (fromFile ?? null) !== (active ?? null),
       backupDir: this.ctx.config.backupDir,
+      secret: {
+        source: this.ctx.config.secretSource,
+        file: this.ctx.config.secretFile,
+        // A PostgreSQL store restores connections after a redeploy; a secret
+        // living in DATA_DIR does not survive one. Together that returns every
+        // connection unusable, so it is worth saying out loud.
+        atRisk: active !== null && this.ctx.config.secretSource === 'file',
+      },
     }
   }
 
