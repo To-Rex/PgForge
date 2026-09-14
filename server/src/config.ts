@@ -22,6 +22,7 @@ const envSchema = z.object({
   SQL_MAX_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
   SQL_MAX_ROWS: z.coerce.number().int().min(100).default(5000),
   PG_DUMP_PATH: z.string().default('pg_dump'),
+  PG_DUMPALL_PATH: z.string().default('pg_dumpall'),
   PG_RESTORE_PATH: z.string().default('pg_restore'),
   PSQL_PATH: z.string().default('psql'),
   BACKUP_TIMEOUT_MS: z.coerce.number().int().min(60_000).default(2 * 3600_000),
@@ -60,7 +61,7 @@ export interface AppConfig {
   /** Public base URL used in emailed links; derived from the request when unset. */
   publicUrl: string | undefined
   sql: { defaultTimeoutMs: number; maxTimeoutMs: number; maxRows: number }
-  tools: { pgDump: string; pgRestore: string; psql: string }
+  tools: { pgDump: string; pgDumpall: string; pgRestore: string; psql: string }
   /** Hung dump/restore processes are killed after this long. */
   backupTimeoutMs: number
   /** HKDF-derived from APP_SECRET; used to sign JWTs. */
@@ -131,7 +132,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxTimeoutMs: e.SQL_MAX_TIMEOUT_MS,
       maxRows: e.SQL_MAX_ROWS,
     },
-    tools: { pgDump: e.PG_DUMP_PATH, pgRestore: e.PG_RESTORE_PATH, psql: e.PSQL_PATH },
+    tools: {
+      pgDump: e.PG_DUMP_PATH,
+      pgDumpall: e.PG_DUMPALL_PATH,
+      pgRestore: e.PG_RESTORE_PATH,
+      psql: e.PSQL_PATH,
+    },
     backupTimeoutMs: e.BACKUP_TIMEOUT_MS,
     jwtSecret: derive('pgforge/jwt').toString('hex'),
     credentialKey: derive('pgforge/credentials'),

@@ -20,6 +20,7 @@ import { PathBar } from '../../components/layout/PathBar.js'
 import { Badge, Button, EmptyState, StatusBadge } from '../../components/ui/basics.js'
 import { ConfirmDialog } from '../../components/ui/overlays.js'
 import { Tabs } from '../../components/ui/Tabs.js'
+import { ClusterPanel } from './ClusterPanel.js'
 import { api, ApiError, downloadFile } from '../../lib/api.js'
 import { formatBytes, formatDate, formatMs } from '../../lib/format.js'
 import { useMeta } from '../../lib/queries.js'
@@ -36,7 +37,7 @@ import {
   UploadRestoreDialog,
 } from './dialogs.js'
 
-type BackupTab = 'history' | 'schedules'
+type BackupTab = 'history' | 'schedules' | 'cluster'
 
 export function BackupsPage() {
   const { t } = useTranslation()
@@ -142,6 +143,7 @@ export function BackupsPage() {
           tabs={[
             { key: 'history', label: t('backup.history') },
             { key: 'schedules', label: t('backup.schedules') },
+            { key: 'cluster', label: t('cluster.tab') },
           ]}
           active={tab}
           onChange={setTab}
@@ -263,6 +265,8 @@ export function BackupsPage() {
             )}
           </div>
         )}
+
+        {tab === 'cluster' && <ClusterPanel connId={connId} connection={connection} />}
 
         {tab === 'schedules' && (
           <div className="panel">

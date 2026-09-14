@@ -14,6 +14,8 @@ import { InvitationsService } from './modules/auth/invitations.service.js'
 import { BackupRepo } from './modules/backup/backup.repo.js'
 import { BackupService } from './modules/backup/backup.service.js'
 import { BackupScheduler } from './modules/backup/scheduler.js'
+import { ClusterBackupRepo } from './modules/backup/cluster.repo.js'
+import { ClusterBackupService } from './modules/backup/cluster.service.js'
 import { ConnectionsRepo } from './modules/connections/connections.repo.js'
 import { ConnectionsService } from './modules/connections/connections.service.js'
 import { DeliveryService } from './modules/delivery/delivery.service.js'
@@ -96,6 +98,7 @@ async function main(): Promise<void> {
   const sql = new SqlService(ctx, history)
   const backupRepo = new BackupRepo(store)
   const backups = new BackupService(ctx, backupRepo)
+  const clusterBackups = new ClusterBackupService(ctx, new ClusterBackupRepo(store))
   const scheduler = new BackupScheduler(ctx, backupRepo, backups, (msg) => app.log.warn(msg))
   const monitor = new MonitorService(ctx)
   const advice = new AdviceService(ctx)
@@ -126,6 +129,7 @@ async function main(): Promise<void> {
     backups,
     backupRepo,
     scheduler,
+    clusterBackups,
     monitor,
     pgroles,
     erd,

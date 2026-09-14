@@ -19,6 +19,8 @@ import { registerInvitationRoutes, registerPublicInvitationRoutes } from './modu
 import type { InvitationsService } from './modules/auth/invitations.service.js'
 import type { BackupRepo } from './modules/backup/backup.repo.js'
 import { registerBackupRoutes } from './modules/backup/backup.routes.js'
+import { registerClusterBackupRoutes } from './modules/backup/cluster.routes.js'
+import type { ClusterBackupService } from './modules/backup/cluster.service.js'
 import type { BackupService } from './modules/backup/backup.service.js'
 import type { BackupScheduler } from './modules/backup/scheduler.js'
 import { registerConnectionRoutes } from './modules/connections/connections.routes.js'
@@ -60,6 +62,7 @@ export interface Services {
   backups: BackupService
   backupRepo: BackupRepo
   scheduler: BackupScheduler
+  clusterBackups: ClusterBackupService
   monitor: MonitorService
   pgroles: PgRolesService
   erd: ErdService
@@ -146,6 +149,7 @@ export async function buildApp(ctx: AppContext, services: Services): Promise<Fas
     registerSqlRoutes(scope, ctx, services.sql, services.history, services.savedQueries)
     registerSearchRoutes(scope, services.search)
     registerBackupRoutes(scope, ctx, services.backups, services.backupRepo, services.scheduler, services.connections)
+    registerClusterBackupRoutes(scope, ctx, services.clusterBackups)
     registerMonitorRoutes(scope, ctx, services.monitor, services.advice)
     registerPgRoleRoutes(scope, ctx, services.pgroles, services.connections)
     registerErdRoutes(scope, services.erd)

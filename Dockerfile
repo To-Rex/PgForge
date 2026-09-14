@@ -17,7 +17,7 @@ FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-# PostgreSQL 18 client tools (pg_dump / pg_restore / psql) from PGDG.
+# PostgreSQL 18 client tools (pg_dump / pg_dumpall / pg_restore / psql) from PGDG.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
  && install -d /usr/share/postgresql-common/pgdg \

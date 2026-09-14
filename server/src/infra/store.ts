@@ -162,6 +162,23 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_saved_owner ON saved_queries(owner_id, name);
   CREATE INDEX idx_saved_shared ON saved_queries(shared, name);
   `,
+  // v6 — whole-server backups (one tar per run; per-database backups are unchanged)
+  `
+  CREATE TABLE cluster_backups (
+    id               TEXT PRIMARY KEY,
+    job_id           TEXT NOT NULL,
+    connection_id    TEXT NOT NULL,
+    status           TEXT NOT NULL,
+    file_name        TEXT NOT NULL,
+    size_bytes       INTEGER,
+    databases        TEXT NOT NULL DEFAULT '[]',
+    includes_globals INTEGER NOT NULL DEFAULT 1,
+    error            TEXT,
+    duration_ms      INTEGER,
+    created_at       TEXT NOT NULL
+  );
+  CREATE INDEX idx_cluster_backups_created ON cluster_backups(created_at DESC);
+  `,
 ]
 
 export type SqlParams = Record<string, string | number | null>
