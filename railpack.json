@@ -48,6 +48,7 @@
     "startCommand": "npm start",
     "variables": {
       "PG_DUMP_PATH": "/usr/lib/postgresql/18/bin/pg_dump",
+      "PG_DUMPALL_PATH": "/usr/lib/postgresql/18/bin/pg_dumpall",
       "PG_RESTORE_PATH": "/usr/lib/postgresql/18/bin/pg_restore",
       "PSQL_PATH": "/usr/lib/postgresql/18/bin/psql",
       "LD_LIBRARY_PATH": "/usr/lib/postgresql/18/lib"

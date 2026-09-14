@@ -29,8 +29,12 @@ DEBIAN_FRONTEND=noninteractive $APT install -y --no-install-recommends "postgres
 # Make the exported tree self-contained: bundle libpq next to the binaries.
 cp -a /usr/lib/x86_64-linux-gnu/libpq.so.5* "/usr/lib/postgresql/${PG_MAJOR}/lib/"
 
+# Every binary the server invokes, checked here so a missing one fails the
+# build instead of the first backup that needs it.
 "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_dump" --version
+"/usr/lib/postgresql/${PG_MAJOR}/bin/pg_dumpall" --version
 "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_restore" --version
+"/usr/lib/postgresql/${PG_MAJOR}/bin/psql" --version
 ls -la "/usr/lib/postgresql/${PG_MAJOR}/bin" "/usr/lib/postgresql/${PG_MAJOR}/lib" | head -40
 
 rm -rf /var/lib/apt/lists/*
